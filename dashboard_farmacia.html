@@ -502,7 +502,7 @@ function fetchSpecificSheet(id, title, type, uniqueId) {
         if (script.parentNode) script.remove();
     };
  
-    let url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json;responseHandler:${cbName}&_=${Date.now()}`;
+    let url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json;responseHandler:${cbName}`;
     if (title) url += '&sheet=' + encodeURIComponent(title);
  
     script.src    = url;
@@ -778,9 +778,9 @@ function updateIntegratedCharts() {
     charts.line.data.labels   = sortedDates;
     charts.line.data.datasets = [
         { label:'Prescrições At.', data: dsPresc, borderColor:'#1e3a5f', backgroundColor:'rgba(30,58,95,0.08)', borderWidth:2, pointRadius:1.5, fill:true, tension:0.3 },
-        { label:'Média Presc.', data: sortedDates.map(()=>avgPresc), borderColor:'#94a3b8', borderWidth:1, pointRadius:0, borderDash:[2,2], fill:false, tension:0 },
+        { label:'Média Presc.', data: sortedDates.map(()=>avgPresc), borderColor:'#475569', borderWidth:2, pointRadius:0, borderDash:[4,4], fill:false, tension:0 },
         { label:'Tratamentos',     data: dsTrat,  borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.08)', borderWidth:2, pointRadius:1.5, fill:true, tension:0.3, borderDash:[5,4] },
-        { label:'Média Tratam.', data: sortedDates.map(()=>avgTrat), borderColor:'#fcd34d', borderWidth:1, pointRadius:0, borderDash:[2,2], fill:false, tension:0 }
+        { label:'Média Tratam.', data: sortedDates.map(()=>avgTrat), borderColor:'#b45309', borderWidth:2, pointRadius:0, borderDash:[4,4], fill:false, tension:0 }
     ];
     charts.line.update();
  
