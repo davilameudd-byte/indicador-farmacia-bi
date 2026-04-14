@@ -258,7 +258,7 @@
 <script>
 // ─── CONFIGURAÇÃO ──────────────────────────────────────────────────────────
 const SPREADSHEETS = [
-    { name: "Emergência",  id: '1E6yzVncrGpUip-i2IUNLKwdOU-A629Mx',                active: true },
+    { name: "Emergência",  id: '1nYo-Pb0yFCUOn_qROB2mRPD3Y_jTkK19',                active: true },
     { name: "Pediatria",   id: '1sAFVO_gvo1Gp-t5Cm4z93y95ph1TyFx-',               active: true },
     { name: "Cer Clínico", id: '1bnYkTzMk024_X4SfSOMUaTEZzQ9m5R40kn3X-Yf5Nt8',   active: true },
     { name: "CTI",         id: '1i-GOynig9ctDC0_p01kYgUOi1sjRfTVsDlfUQS2hm4U',   active: true }
@@ -309,7 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
     renderSetoresToggles();
     initCharts();
     fetchData();
-    setInterval(fetchData, 60000);
+    setInterval(fetchData, 3600000); // 1 hora
 });
  
 function renderMonthButtons() {
@@ -499,9 +499,10 @@ function fetchSpecificSheet(id, title, type, uniqueId) {
     window[cbName] = function(json) {
         handleSheetResponse(uniqueId, json, type);
         delete window[cbName];
+        if (script.parentNode) script.remove();
     };
  
-    let url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json;responseHandler:${cbName}`;
+    let url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json;responseHandler:${cbName}&_=${Date.now()}`;
     if (title) url += '&sheet=' + encodeURIComponent(title);
  
     script.src    = url;
@@ -509,6 +510,8 @@ function fetchSpecificSheet(id, title, type, uniqueId) {
     script.onerror = () => {
         logDebug(`Erro: ${id.substring(0,8)} (${title || 'Matriz'})`);
         handleSheetResponse(uniqueId, null, type);
+        delete window[cbName];
+        if (script.parentNode) script.remove();
     };
  
     const existing = document.getElementById(script.id);
@@ -580,10 +583,12 @@ function parseListData(table) {
     if (headerRowIndex === -1) return;
  
     const cols = {};
-    table.cols.forEach((c, idx) => {
-        const val = table.rows[headerRowIndex].c[idx] ? String(table.rows[headerRowIndex].c[idx].v).toUpperCase() : '';
-        cols[val] = idx;
-    });
+    if (table.rows[headerRowIndex].c) {
+        table.rows[headerRowIndex].c.forEach((cell, idx) => {
+            const val = cell && cell.v ? String(cell.v).toUpperCase().trim() : '';
+            if (val) cols[val] = idx;
+        });
+    }
  
     for (let r = headerRowIndex + 1; r < table.rows.length; r++) {
         const row = table.rows[r];
@@ -767,10 +772,15 @@ function updateIntegratedCharts() {
     const dsTrat  = sortedDates.map(d => { let s=0; for(let k in consolidatedIndicators) if(k.toLowerCase().includes('tratamentos')) s += (consolidatedIndicators[k].byDate[d]||0); return s; });
     const dsPresc = sortedDates.map(d => { let s=0; for(let k in consolidatedIndicators) if(k.toLowerCase().includes('prescrições atendidas')) s += (consolidatedIndicators[k].byDate[d]||0); return s; });
  
+    const avgTrat = dsTrat.length ? dsTrat.reduce((a,b)=>a+b,0)/dsTrat.length : 0;
+    const avgPresc = dsPresc.length ? dsPresc.reduce((a,b)=>a+b,0)/dsPresc.length : 0;
+
     charts.line.data.labels   = sortedDates;
     charts.line.data.datasets = [
         { label:'Prescrições At.', data: dsPresc, borderColor:'#1e3a5f', backgroundColor:'rgba(30,58,95,0.08)', borderWidth:2, pointRadius:1.5, fill:true, tension:0.3 },
-        { label:'Tratamentos',     data: dsTrat,  borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.08)', borderWidth:2, pointRadius:1.5, fill:true, tension:0.3, borderDash:[5,4] }
+        { label:'Média Presc.', data: sortedDates.map(()=>avgPresc), borderColor:'#94a3b8', borderWidth:1, pointRadius:0, borderDash:[2,2], fill:false, tension:0 },
+        { label:'Tratamentos',     data: dsTrat,  borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.08)', borderWidth:2, pointRadius:1.5, fill:true, tension:0.3, borderDash:[5,4] },
+        { label:'Média Tratam.', data: sortedDates.map(()=>avgTrat), borderColor:'#fcd34d', borderWidth:1, pointRadius:0, borderDash:[2,2], fill:false, tension:0 }
     ];
     charts.line.update();
  
@@ -778,7 +788,7 @@ function updateIntegratedCharts() {
     const prop  = getIndicatorSumLike('intervenções propostas');
     const aceit = getIndicatorSumLike('intervenções aceitas');
     const rejeit = Math.max(0, prop - aceit);
-    charts.pie.data.labels   = ['Aceitas', 'Não Aceitas'];
+    charts.pie.data.labels   = [`Aceitas (${fmt(aceit, 0)})`, `Não Aceitas (${fmt(rejeit, 0)})`];
     charts.pie.data.datasets = [{ data:[aceit, rejeit], backgroundColor:['#16a34a','#e2e8f0'], borderWidth:0 }];
     charts.pie.update();
  
@@ -811,7 +821,7 @@ function updateIntegratedCharts() {
     ['cobrança', 'erro', 'segundo envio'].forEach(term => {
         for (let k in consolidatedIndicators) {
             if (k.toLowerCase().includes(term) && consolidatedIndicators[k].total > 0) {
-                eLabels.push(k.length > 22 ? k.substring(0,22)+'…' : k);
+                eLabels.push(k);
                 eData.push(getMonthSum(k, selectedMonthNum));
             }
         }
