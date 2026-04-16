@@ -1,1191 +1,734 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Analítico - Farmácia BI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Analítico – Farmácia BI</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+/* ── Reset & Base ─────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;color:#1e293b;background:#f1f5f9}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#e2e8f0}
+::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:3px}
 
-        :root {
-            --amber:    #f59e0b;
-            --amber-lt: #fef3c7;
-            --amber-dk: #d97706;
-            --navy:     #1e3a5f;
-            --navy-lt:  #2d5286;
-            --green:    #16a34a;
-            --red:      #dc2626;
-            --gray-bg:  #f1f5f9;
-            --card-bg:  rgba(255,255,255,0.92);
-            --border:   rgba(251,191,36,0.25);
-        }
+/* ── Layout ───────────────────────────────────────────────────── */
+body{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+#app{display:flex;flex:1;overflow:hidden}
+header{display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;gap:10px}
+aside{width:158px;background:#111827;flex-shrink:0;display:flex;flex-direction:column;padding:8px 6px;overflow-y:auto}
+main{flex:1;overflow-y:auto;padding:12px;background:#f1f5f9;position:relative}
 
-        * { box-sizing: border-box; }
+/* ── Colors ───────────────────────────────────────────────────── */
+:root{
+  --amber:#f59e0b;--amber-dk:#d97706;--amber-lt:#fef3c7;
+  --navy:#1e3a5f;--green:#16a34a;--red:#dc2626;
+  --card:#fff;--border:rgba(251,191,36,.2);
+}
 
-        body {
-            font-family: 'DM Sans', system-ui, sans-serif;
-            background: var(--gray-bg);
-            color: #1e293b;
-            margin: 0; padding: 0;
-        }
+/* ── Cards ────────────────────────────────────────────────────── */
+.card{background:var(--card);border-radius:9px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.card-hover{transition:transform .15s,box-shadow .15s;cursor:default}
+.card-hover:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.12)}
 
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #e2e8f0; }
-        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+/* ── KPI row ──────────────────────────────────────────────────── */
+#kpi-container{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px}
+.kpi-card{padding:12px 14px;display:flex;flex-direction:column;gap:4px;border-left:4px solid var(--amber)}
+.kpi-card.navy{border-left-color:var(--navy)}
+.kpi-card.green{border-left-color:var(--green)}
+.kpi-card.red{border-left-color:var(--red)}
+.kpi-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px}
+.kpi-icon{font-size:18px;color:#d1d5db}
+.kpi-val{font-size:19px;font-weight:700;color:#1e293b;line-height:1.1}
+.kpi-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+.kpi-prev{font-size:9px;color:#94a3b8;margin-top:4px;border-top:1px solid #f1f5f9;padding-top:4px}
 
-        /* Loader */
-        .loader {
-            border: 3px solid #e2e8f0;
-            border-left-color: var(--amber);
-            border-radius: 50%;
-            width: 36px; height: 36px;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
+/* ── Delta badges ─────────────────────────────────────────────── */
+.up{color:var(--green);font-weight:700;font-size:10px}
+.dn{color:var(--red);font-weight:700;font-size:10px}
+.nt{color:#64748b;font-size:10px}
 
-        /* Cards */
-        .card {
-            background: var(--card-bg);
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
-            border: 1px solid var(--border);
-            backdrop-filter: blur(10px);
-        }
-        .card-hover { transition: transform 0.15s, box-shadow 0.15s; }
-        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+/* ── Header filter buttons ────────────────────────────────────── */
+.hdr-group{display:flex;flex-direction:column;gap:3px}
+.hdr-group label{font-size:9px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.hdr-btns{display:flex;gap:3px;flex-wrap:wrap}
+.pbi-btn{padding:3px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;border-radius:4px;border:1px solid var(--amber-dk);background:linear-gradient(to bottom,#fbbf24,#f59e0b);color:#1f2937;transition:all .15s}
+.pbi-btn:hover{background:#fcd34d}
+.pbi-btn.active{background:#1e3a5f;color:#fbbf24;border-color:#1e3a5f}
+.pbi-btn.has-data{box-shadow:inset 0 0 0 2px rgba(22,163,74,.45)}
 
-        /* KPI border accent */
-        .kpi-accent { border-left: 4px solid var(--amber); }
-        .kpi-accent-green { border-left: 4px solid var(--green); }
-        .kpi-accent-red { border-left: 4px solid var(--red); }
-        .kpi-accent-navy { border-left: 4px solid var(--navy); }
+/* ── Sync info ────────────────────────────────────────────────── */
+#sync-area{display:flex;flex-direction:column;align-items:flex-end;font-size:9px;color:#64748b;gap:1px}
+.btn-refresh{padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer;border-radius:4px;border:1px solid #e2e8f0;background:#fff;display:flex;align-items:center;gap:5px;transition:background .15s}
+.btn-refresh:hover{background:#f8fafc}
 
-        /* Delta badges */
-        .delta-up   { color: var(--green); }
-        .delta-down { color: var(--red); }
-        .delta-neutral { color: #64748b; }
+/* ── Sidebar buttons ──────────────────────────────────────────── */
+.sidebar-label{font-size:8px;color:#4b5563;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:4px 8px 2px}
+.sb-btn{display:block;width:100%;text-align:left;padding:8px 10px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.04em;background:transparent;border:none;border-left:3px solid transparent;margin-bottom:1px;cursor:pointer;transition:all .15s}
+.sb-btn:hover{background:#374151;color:#e5e7eb}
+.sb-btn.active{background:linear-gradient(90deg,#374151,#1f2937);color:#fbbf24;border-left-color:#fbbf24}
+.sb-btn i{margin-right:4px;width:12px}
 
-        /* Header buttons */
-        .pbi-btn {
-            background: linear-gradient(to bottom, #fbbf24, #f59e0b);
-            color: #1f2937; border: 1px solid #d97706;
-            padding: 4px 12px; font-size: 10px; font-weight: 700;
-            cursor: pointer; transition: all 0.15s; border-radius: 4px;
-            text-transform: uppercase; letter-spacing: 0.03em;
-        }
-        .pbi-btn:hover { background: #fcd34d; }
-        .pbi-btn.active { background: #1e3a5f; color: #fbbf24; border-color: #1e3a5f; }
-        .pbi-btn.month-has-data { box-shadow: inset 0 0 0 2px rgba(22,163,74,0.4); }
+/* ── Loader ───────────────────────────────────────────────────── */
+#loading-indicator{position:absolute;inset:0;background:rgba(241,245,249,.88);backdrop-filter:blur(4px);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.loader{width:36px;height:36px;border:3px solid #e2e8f0;border-left-color:var(--amber);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading-text{font-weight:700;font-size:13px;color:var(--navy)}
+#debug-log{font-size:9px;color:#94a3b8;background:rgba(255,255,255,.6);padding:6px;border-radius:6px;max-width:320px;max-height:100px;overflow-y:auto;font-family:monospace}
 
-        /* Sidebar */
-        .sidebar-btn {
-            width: 100%; text-align: left;
-            padding: 9px 12px; font-size: 10px; font-weight: 700;
-            color: #9ca3af; border: none; background: transparent;
-            text-transform: uppercase; letter-spacing: 0.04em;
-            border-left: 3px solid transparent;
-            transition: all 0.15s; margin-bottom: 1px; cursor: pointer;
-        }
-        .sidebar-btn:hover { background: #374151; color: #e5e7eb; }
-        .sidebar-btn.active { background: linear-gradient(90deg,#374151,#1f2937); color: #fbbf24; border-left-color: #fbbf24; }
+/* ── Grid helpers ─────────────────────────────────────────────── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid-3{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.flex-col{display:flex;flex-direction:column;gap:10px}
+.chart-wrap{position:relative;flex:1;min-height:0}
 
-        /* Semáforo de meta */
-        .meta-ok    { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-        .meta-warn  { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
-        .meta-crit  { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+/* ── Charts wrapper ───────────────────────────────────────────── */
+.chart-card{padding:12px;display:flex;flex-direction:column}
+.chart-card h3{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:8px}
+.chart-card h3 i{color:var(--amber);margin-right:4px}
+.chart-inner{position:relative;height:230px}
+.chart-inner-sm{position:relative;height:190px}
 
-        /* Table styles */
-        .data-table { border-collapse: collapse; width: 100%; font-size: 11px; }
-        .data-table th { background: var(--navy); color: white; padding: 7px 10px; text-align: left; font-size: 9px; font-weight: 700; text-transform: uppercase; }
-        .data-table th.right, .data-table td.right { text-align: right; }
-        .data-table th.center, .data-table td.center { text-align: center; }
-        .data-table td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
-        .data-table tr:hover td { background: #fffbeb; }
-        .data-table .total-row td { background: #f8fafc; font-weight: 700; }
-        .data-table .month-col-curr { background: #fffde7 !important; font-weight: 700; }
-    </style>
+/* ── Tables ───────────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto;border:1px solid #e2e8f0;border-radius:8px;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead{background:var(--navy)}
+thead th{padding:7px 10px;color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+tbody td{padding:5px 10px;border-bottom:1px solid #f8fafc}
+tbody tr:hover td{background:#fffbeb}
+.tr-total td{background:#f8fafc!important;font-weight:700}
+.tr-dim td{opacity:.3}
+.td-r{text-align:right}
+.td-c{text-align:center}
+.th-r{text-align:right}
+.th-c{text-align:center}
+.td-mono{font-family:monospace;color:#94a3b8;font-size:9px}
+.td-curr{background:#fffde7!important;font-weight:700}
+.th-curr{background:#d97706!important}
+
+/* ── Section header ───────────────────────────────────────────── */
+.section-hdr{font-size:15px;font-weight:800;color:var(--navy);display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.section-hdr i{color:var(--amber)}
+
+/* ── KPI detail block ─────────────────────────────────────────── */
+.kpi-detail{padding:14px;display:flex;flex-direction:column;gap:6px}
+.kpi-detail .icon-row{display:flex;justify-content:space-between;align-items:flex-start}
+.kpi-detail .val{font-size:24px;font-weight:700;color:#1e293b;line-height:1.1}
+.kpi-detail .lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+
+/* ── Margin helpers ───────────────────────────────────────────── */
+.mb8{margin-bottom:8px}
+.mb12{margin-bottom:12px}
+.mt8{margin-top:8px}
+.mt4{margin-top:4px}
+
+/* ── Sidebar separator ────────────────────────────────────────── */
+.sb-sep{flex:1}
+.sb-divider{border-top:1px solid #374151;margin:6px 0}
+
+/* ── Info pill ────────────────────────────────────────────────── */
+.info-pill{font-size:9px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:4px 8px;margin-bottom:10px}
+
+@media(max-width:900px){
+  #kpi-container{grid-template-columns:repeat(2,1fr)}
+  .grid-3,.grid-2{grid-template-columns:1fr}
+  .grid-4{grid-template-columns:repeat(2,1fr)}
+  aside{width:120px}
+}
+</style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden">
+<body>
 
-<!-- ═══ HEADER ═══════════════════════════════════════════════════════════ -->
-<header class="bg-white border-b border-gray-200 px-4 py-2 flex justify-between items-center z-10 shrink-0 shadow-sm">
-    <div class="flex items-center gap-3 w-[200px]">
-        <img src="/img-uploads/DOIT2.png" alt="DOIT BI" class="h-9 object-contain"
-            onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\'font-bold text-lg\' style=\'color:#1e3a5f\'>DOIT <span style=\'color:#f59e0b\'>BI</span> <i class=\'fa fa-chart-pie\'></i></span>';">
+<!-- ═══ HEADER ═══════════════════════════════════════════════════ -->
+<header>
+  <!-- Logo -->
+  <div style="width:160px;flex-shrink:0">
+    <img src="/img-uploads/DOIT2.png" alt="DOIT BI" style="height:36px;object-fit:contain"
+      onerror="this.outerHTML='<b style=\'font-size:16px;color:#1e3a5f\'>DOIT <span style=\'color:#f59e0b\'>BI</span> <i class=\'fa fa-chart-pie\'></i></b>'">
+  </div>
+
+  <!-- Filtros -->
+  <div style="display:flex;gap:18px;align-items:center;flex:1;justify-content:center">
+    <div class="hdr-group">
+      <label>Mês de Referência</label>
+      <div class="hdr-btns" id="month-filters"></div>
     </div>
-
-    <!-- Filtros centrais -->
-    <div class="flex-grow flex justify-center items-center gap-5">
-        <!-- Seletor de mês - ano completo -->
-        <div class="flex flex-col">
-            <span class="text-[9px] text-gray-400 font-semibold mb-1 uppercase tracking-wide">Mês de Referência</span>
-            <div class="flex gap-1 flex-wrap" id="month-filters"></div>
-        </div>
-
-        <!-- Toggles de setor -->
-        <div class="flex flex-col border-l border-gray-100 pl-5">
-            <span class="text-[9px] text-gray-400 font-semibold mb-1 uppercase tracking-wide">Setor / Fonte</span>
-            <div class="flex gap-1 flex-wrap" id="setores-header-toggles"></div>
-        </div>
+    <div class="hdr-group" style="border-left:1px solid #f1f5f9;padding-left:18px">
+      <label>Setor / Fonte</label>
+      <div class="hdr-btns" id="setores-header-toggles"></div>
     </div>
+  </div>
 
-    <!-- Status e atualizar -->
-    <div class="flex items-center gap-3 w-[200px] justify-end">
-        <div class="text-[9px] text-gray-500 flex flex-col items-end">
-            <span class="font-bold flex items-center gap-1">
-                <i class="fa-solid fa-circle text-[7px]" id="status-dot" style="color:#eab308"></i>
-                <span id="sync-text">Conectando...</span>
-            </span>
-            <span>Atualizado: <b id="last-update" class="text-blue-600">--:--</b></span>
-        </div>
-        <button onclick="fetchData()" class="pbi-btn flex items-center gap-1">
-            <i class="fa-solid fa-rotate text-blue-600"></i> Atualizar
-        </button>
+  <!-- Status -->
+  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+    <div id="sync-area">
+      <span style="font-weight:700;display:flex;align-items:center;gap:4px">
+        <i class="fa fa-circle" id="status-dot" style="font-size:7px;color:#eab308"></i>
+        <span id="sync-text">Conectando...</span>
+      </span>
+      <span>Atualizado: <b id="last-update" style="color:#2563eb">--:--</b></span>
     </div>
+    <button class="btn-refresh" onclick="fetchData()">
+      <i class="fa fa-rotate" style="color:#2563eb"></i> Atualizar
+    </button>
+  </div>
 </header>
 
-<!-- ═══ LAYOUT PRINCIPAL ═══════════════════════════════════════════════════ -->
-<div class="flex flex-grow overflow-hidden">
+<!-- ═══ APP ═══════════════════════════════════════════════════════ -->
+<div id="app">
 
-    <!-- SIDEBAR -->
-    <aside class="w-[155px] bg-gray-900 border-r border-gray-800 p-2 shrink-0 flex flex-col pt-3 overflow-y-auto">
-        <div class="text-[8px] text-gray-600 font-bold uppercase tracking-widest px-2 mb-2">Painéis</div>
-        <button class="sidebar-btn active" onclick="switchTab('integrated',this)">
-            <i class="fa fa-chart-line mr-1"></i> Visão Integrada
-        </button>
-        <button class="sidebar-btn" onclick="switchTab('comparativo',this)">
-            <i class="fa fa-calendar-days mr-1"></i> Comparativo Mensal
-        </button>
-        <button class="sidebar-btn" onclick="switchTab('atb',this)">
-            <i class="fa fa-capsules mr-1"></i> Indicadores ATB
-        </button>
-        <button class="sidebar-btn" onclick="switchTab('operational',this)">
-            <i class="fa fa-gears mr-1"></i> Operacionais
-        </button>
-        <button class="sidebar-btn" onclick="switchTab('prescents',this)">
-            <i class="fa fa-notes-medical mr-1"></i> Prescrições / Intervenções
-        </button>
-        <button class="sidebar-btn" onclick="switchTab('production',this)">
-            <i class="fa fa-industry mr-1"></i> Produção
-        </button>
-        <div class="mt-auto border-t border-gray-700 pt-2">
-            <button class="sidebar-btn" onclick="switchTab('quanti',this)">
-                <i class="fa fa-magnifying-glass-chart mr-1"></i> Gestão Quantidade
-            </button>
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="sidebar-label">Painéis</div>
+    <button class="sb-btn active" onclick="switchTab('integrated',this)"><i class="fa fa-chart-line"></i>Visão Integrada</button>
+    <button class="sb-btn" onclick="switchTab('comparativo',this)"><i class="fa fa-calendar-days"></i>Comparativo Mensal</button>
+    <button class="sb-btn" onclick="switchTab('atb',this)"><i class="fa fa-capsules"></i>Indicadores ATB</button>
+    <button class="sb-btn" onclick="switchTab('operational',this)"><i class="fa fa-gears"></i>Operacionais</button>
+    <button class="sb-btn" onclick="switchTab('prescents',this)"><i class="fa fa-notes-medical"></i>Prescrições / Interv.</button>
+    <button class="sb-btn" onclick="switchTab('production',this)"><i class="fa fa-industry"></i>Produção</button>
+    <div class="sb-sep"></div>
+    <div class="sb-divider"></div>
+    <button class="sb-btn" onclick="switchTab('quanti',this)"><i class="fa fa-magnifying-glass-chart"></i>Gestão Quantidade</button>
+  </aside>
+
+  <!-- MAIN -->
+  <main id="main">
+    <div id="loading-indicator">
+      <div class="loader"></div>
+      <p id="loading-text">Conectando ao Google BI...</p>
+      <div id="debug-log"></div>
+    </div>
+
+    <div id="dashboard-content" style="display:none;flex-direction:column;gap:10px">
+
+      <!-- KPIs -->
+      <div id="kpi-container"></div>
+
+      <!-- Visão Integrada -->
+      <div id="tab-integrated">
+        <div class="grid-3 mb12">
+          <div class="card chart-card" style="min-height:270px">
+            <h3><i class="fa fa-chart-line"></i>Evolução — Prescrições vs Tratamentos</h3>
+            <div class="chart-inner"><canvas id="lineChart"></canvas></div>
+          </div>
+          <div class="card chart-card" style="min-height:270px">
+            <h3><i class="fa fa-circle-half-stroke"></i>Taxa de Aceitação de Intervenções</h3>
+            <div class="chart-inner" style="display:flex;align-items:center;justify-content:center"><canvas id="pieChart"></canvas></div>
+          </div>
         </div>
-    </aside>
-
-    <!-- CONTEÚDO PRINCIPAL -->
-    <main class="flex-grow p-3 bg-[#f1f5f9] overflow-y-auto relative">
-
-        <!-- Loading overlay -->
-        <div id="loading-indicator" class="absolute inset-0 bg-[#f1f5f9]/85 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
-            <div class="loader mb-3"></div>
-            <p class="font-bold text-sm" style="color:var(--navy)" id="loading-text">Conectando ao Google BI...</p>
-            <div id="debug-log" class="mt-3 text-[10px] text-gray-400 bg-white/60 p-2 rounded max-w-sm max-h-32 overflow-y-auto font-mono"></div>
+        <div class="grid-2 mb12">
+          <div class="card chart-card" style="min-height:220px">
+            <h3><i class="fa fa-boxes-stacked" style="color:#3b82f6"></i>Comparativo Multimensal — Produção</h3>
+            <div class="chart-inner-sm"><canvas id="barProdChart"></canvas></div>
+          </div>
+          <div class="card chart-card" style="min-height:220px">
+            <h3><i class="fa fa-triangle-exclamation" style="color:#f97316"></i>Alertas Críticos — Mês Selecionado</h3>
+            <div class="chart-inner-sm"><canvas id="barErrosChart"></canvas></div>
+          </div>
         </div>
+      </div>
 
-        <div id="dashboard-content" class="hidden flex flex-col gap-3 h-full">
+      <!-- Abas dinâmicas -->
+      <div id="tab-details" style="display:none">
+        <div id="details-content"></div>
+      </div>
 
-            <!-- ── KPI ROW (sempre visível) ── -->
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-2 shrink-0" id="kpi-container"></div>
-
-            <!-- ── VISÃO INTEGRADA ── -->
-            <div id="tab-integrated" class="tab-view flex flex-col gap-3">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                    <div class="lg:col-span-2 card p-3 flex flex-col" style="min-height:280px">
-                        <h3 class="text-xs font-bold text-gray-500 mb-2 pb-1 border-b border-gray-100 uppercase tracking-wide">
-                            <i class="fa fa-chart-line text-amber-500 mr-1"></i> Evolução Mensal — Prescrições vs Tratamentos
-                        </h3>
-                        <div class="relative flex-grow"><canvas id="lineChart"></canvas></div>
-                    </div>
-                    <div class="card p-3 flex flex-col" style="min-height:280px">
-                        <h3 class="text-xs font-bold text-gray-500 mb-2 pb-1 border-b border-gray-100 uppercase tracking-wide">
-                            <i class="fa fa-circle-half-stroke text-amber-500 mr-1"></i> Taxa de Aceitação de Intervenções
-                        </h3>
-                        <div class="relative flex-grow flex items-center justify-center"><canvas id="pieChart"></canvas></div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <div class="card p-3 flex flex-col" style="min-height:220px">
-                        <h3 class="text-xs font-bold text-gray-500 mb-2 pb-1 border-b border-gray-100 uppercase tracking-wide">
-                            <i class="fa fa-boxes-stacked text-blue-500 mr-1"></i> Comparativo Multimensal — Produção
-                        </h3>
-                        <div class="relative flex-grow"><canvas id="barProdChart"></canvas></div>
-                    </div>
-                    <div class="card p-3 flex flex-col" style="min-height:220px">
-                        <h3 class="text-xs font-bold text-gray-500 mb-2 pb-1 border-b border-gray-100 uppercase tracking-wide">
-                            <i class="fa fa-triangle-exclamation text-orange-500 mr-1"></i> Alertas Críticos — Acumulado
-                        </h3>
-                        <div class="relative flex-grow"><canvas id="barErrosChart"></canvas></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── ABAS DINÂMICAS ── -->
-            <div id="tab-details" class="tab-view hidden card p-4 overflow-y-auto" style="min-height:400px">
-                <div id="details-content"></div>
-            </div>
-
-            <!-- ── RANKING / TABELA BASE ── -->
-            <div class="card p-3 mb-6 shrink-0 flex flex-col">
-                <h3 class="text-xs font-bold text-gray-500 mb-2 pb-1 border-b border-gray-100 uppercase tracking-wide">
-                    <i class="fa fa-list-ol text-amber-500 mr-1"></i> Ranking de Indicadores
-                </h3>
-                <div class="overflow-y-auto" style="max-height:260px">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Indicador Operacional</th>
-                                <th class="right">Mês Atual</th>
-                                <th class="right">Mês Anterior</th>
-                                <th class="center">Δ</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-body"></tbody>
-                    </table>
-                </div>
-            </div>
+      <!-- Ranking -->
+      <div class="card" style="padding:12px;margin-bottom:16px">
+        <h3 style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:8px">
+          <i class="fa fa-list-ol" style="color:var(--amber)"></i> Ranking de Indicadores
+        </h3>
+        <div style="overflow-y:auto;max-height:240px">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:28px">#</th>
+                <th>Indicador</th>
+                <th class="th-r">Mês Atual</th>
+                <th class="th-r">Mês Anterior</th>
+                <th class="th-c">Δ</th>
+              </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+          </table>
         </div>
-    </main>
+      </div>
+    </div>
+  </main>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
 <script>
-// ─── CONFIGURAÇÃO ──────────────────────────────────────────────────────────
+// ── CONFIG ──────────────────────────────────────────────────────
 const SPREADSHEETS = [
-    { name: "Emergência",  id: '1E6yzVncrGpUip-i2IUNLKwdOU-A629Mx',                active: true },
-    { name: "Pediatria",   id: '1sAFVO_gvo1Gp-t5Cm4z93y95ph1TyFx-',               active: true },
-    { name: "Cer Clínico", id: '1bnYkTzMk024_X4SfSOMUaTEZzQ9m5R40kn3X-Yf5Nt8',   active: true },
-    { name: "CTI",         id: '1i-GOynig9ctDC0_p01kYgUOi1sjRfTVsDlfUQS2hm4U',   active: true }
+  { name:"Emergência",  id:'1E6yzVncrGpUip-i2IUNLKwdOU-A629Mx',              active:true },
+  { name:"Pediatria",   id:'1sAFVO_gvo1Gp-t5Cm4z93y95ph1TyFx-',             active:true },
+  { name:"Cer Clínico", id:'1bnYkTzMk024_X4SfSOMUaTEZzQ9m5R40kn3X-Yf5Nt8', active:true },
+  { name:"CTI",         id:'1i-GOynig9ctDC0_p01kYgUOi1sjRfTVsDlfUQS2hm4U', active:true }
 ];
 
-// Metas configuráveis (0 = sem meta definida)
-const METAS = {
-    'prescrições atendidas':  0,
-    'itens dispensados':      0,
-    'tratamentos iniciados':  0,
-    'interv':                 0,
-};
-
-const MONTHS_LIST = [
-    { label:'Jan', num:'01' }, { label:'Fev', num:'02' }, { label:'Mar', num:'03' },
-    { label:'Abr', num:'04' }, { label:'Mai', num:'05' }, { label:'Jun', num:'06' },
-    { label:'Jul', num:'07' }, { label:'Ago', num:'08' }, { label:'Set', num:'09' },
-    { label:'Out', num:'10' }, { label:'Nov', num:'11' }, { label:'Dez', num:'12' }
+const MONTHS = [
+  {l:'Jan',n:'01'},{l:'Fev',n:'02'},{l:'Mar',n:'03'},{l:'Abr',n:'04'},
+  {l:'Mai',n:'05'},{l:'Jun',n:'06'},{l:'Jul',n:'07'},{l:'Ago',n:'08'},
+  {l:'Set',n:'09'},{l:'Out',n:'10'},{l:'Nov',n:'11'},{l:'Dez',n:'12'}
 ];
 
-// ─── ESTADO GLOBAL ─────────────────────────────────────────────────────────
-let fetchedDataSets      = [];
-let sheetsLoaded         = 0;
-let expectedSheets       = 0;
-let consolidatedIndicators = {};
-let allDatesSet          = new Set();
-let fallbackTimeout;
-let charts               = {};
-let currentTab           = 'integrated';
-let selectedMonth        = 'Mar'; // label
-let selectedMonthNum     = '03';  // number string
+// ── STATE ────────────────────────────────────────────────────────
+let sheetsLoaded=0, expectedSheets=0, fallbackTimeout;
+let consolidatedIndicators={}, allDatesSet=new Set(), charts={};
+let currentTab='integrated';
+let selMonth='Mar', selMonthNum='03';
 
-// ─── SNIFFER GLOBAL (fallback Google) ─────────────────────────────────────
-window.google = {
-    visualization: {
-        Query: {
-            setResponse: function(json) {
-                logDebug('Sniffer Global ativado');
-                handleSheetResponse('global_fallback', json, 'matrix');
-            }
-        }
-    }
-};
+// ── INIT ─────────────────────────────────────────────────────────
+window.google={visualization:{Query:{setResponse:function(j){handleSheetResponse('gf',j,'matrix');}}}}; 
 
-// ─── INIT ──────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function() {
-    renderMonthButtons();
-    renderSetoresToggles();
-    initCharts();
-    fetchData();
-    setInterval(fetchData, 60000);
+document.addEventListener('DOMContentLoaded',()=>{
+  buildMonthBtns(); buildSetorBtns(); initCharts(); fetchData();
+  setInterval(fetchData,60000);
 });
 
-function renderMonthButtons() {
-    const container = document.getElementById('month-filters');
-    // Detecta mês atual
-    const now = new Date();
-    const currMonthNum = String(now.getMonth()+1).padStart(2,'0');
-
-    let html = '';
-    MONTHS_LIST.forEach(m => {
-        const isActive = m.label === selectedMonth ? 'active' : '';
-        // Destaca meses com dados (após fetch, faremos update via markMonthsWithData)
-        html += `<button class="pbi-btn ${isActive}" id="mbtn-${m.num}"
-                    onclick="updateMonth('${m.label}','${m.num}',this)">${m.label}</button>`;
-    });
-    container.innerHTML = html;
+function buildMonthBtns(){
+  document.getElementById('month-filters').innerHTML = MONTHS.map(m=>
+    `<button class="pbi-btn${m.l===selMonth?' active':''}" id="mb${m.n}" onclick="updateMonth('${m.l}','${m.n}',this)">${m.l}</button>`
+  ).join('');
 }
 
-function markMonthsWithData() {
-    MONTHS_LIST.forEach(m => {
-        const btn = document.getElementById('mbtn-' + m.num);
-        if (!btn) return;
-        const suffix = '/' + m.num;
-        let hasData = false;
-        for (let k in consolidatedIndicators) {
-            for (let d in consolidatedIndicators[k].byDate) {
-                if (d.endsWith(suffix)) { hasData = true; break; }
-            }
-            if (hasData) break;
-        }
-        if (hasData) btn.classList.add('month-has-data');
-        else btn.classList.remove('month-has-data');
-    });
+function buildSetorBtns(){
+  document.getElementById('setores-header-toggles').innerHTML = SPREADSHEETS.map((s,i)=>
+    `<button class="pbi-btn${s.active?' active':''}" onclick="toggleSheet(${i})">${s.name}</button>`
+  ).join('');
 }
 
-function renderSetoresToggles() {
-    const container = document.getElementById('setores-header-toggles');
-    if (!container) return;
-    container.innerHTML = SPREADSHEETS.map((s, idx) =>
-        `<button onclick="toggleSheet(${idx})" class="pbi-btn ${s.active ? 'active' : ''}">${s.name}</button>`
-    ).join('');
+function markMonthsData(){
+  MONTHS.forEach(m=>{
+    const btn=document.getElementById('mb'+m.n); if(!btn)return;
+    const suf='/'+m.n;
+    let has=false;
+    for(let k in consolidatedIndicators) for(let d in consolidatedIndicators[k].byDate) if(d.endsWith(suf)){has=true;break;}
+    has ? btn.classList.add('has-data') : btn.classList.remove('has-data');
+  });
 }
 
-function updateMonth(label, num, btn) {
-    selectedMonth    = label;
-    selectedMonthNum = num;
-    document.querySelectorAll('#month-filters .pbi-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    renderDashboard();
+function updateMonth(l,n,btn){
+  selMonth=l; selMonthNum=n;
+  document.querySelectorAll('#month-filters .pbi-btn').forEach(b=>b.classList.remove('active'));
+  btn && btn.classList.add('active');
+  renderDashboard();
 }
 
-function toggleSheet(index) {
-    if (!SPREADSHEETS[index]) return;
-    SPREADSHEETS[index].active = !SPREADSHEETS[index].active;
-    renderSetoresToggles();
-    fetchData();
+function toggleSheet(i){ SPREADSHEETS[i].active=!SPREADSHEETS[i].active; buildSetorBtns(); fetchData(); }
+
+function switchTab(id,btn){
+  currentTab=id;
+  document.querySelectorAll('.sb-btn').forEach(b=>b.classList.remove('active'));
+  btn && btn.classList.add('active');
+  renderDashboard();
 }
 
-function switchTab(tabId, btn) {
-    currentTab = tabId;
-    document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    renderDashboard();
+// ── CHART INIT ───────────────────────────────────────────────────
+Chart.defaults.color='#64748b';
+Chart.defaults.font.family="'Segoe UI',sans-serif";
+Chart.defaults.font.size=11;
+Chart.defaults.plugins.tooltip.backgroundColor='rgba(255,255,255,.95)';
+Chart.defaults.plugins.tooltip.titleColor='#1e293b';
+Chart.defaults.plugins.tooltip.bodyColor='#475569';
+Chart.defaults.plugins.tooltip.borderColor='#e2e8f0';
+Chart.defaults.plugins.tooltip.borderWidth=1;
+
+function initCharts(){
+  Object.values(charts).forEach(c=>{try{c.destroy();}catch(e){}});
+  const lo={responsive:true,maintainAspectRatio:false};
+
+  charts.line=new Chart(document.getElementById('lineChart').getContext('2d'),{
+    type:'line',data:{labels:[],datasets:[]},
+    options:{...lo,plugins:{legend:{position:'top',labels:{boxWidth:8,usePointStyle:true,padding:10}}},
+      scales:{x:{grid:{display:false},ticks:{maxRotation:45,font:{size:9}}},y:{beginAtZero:true,grid:{color:'#f1f5f9'}}}}
+  });
+  charts.pie=new Chart(document.getElementById('pieChart').getContext('2d'),{
+    type:'doughnut',data:{labels:[],datasets:[]},
+    options:{...lo,cutout:'65%',plugins:{legend:{position:'bottom',labels:{boxWidth:8,usePointStyle:true,padding:8}},
+      tooltip:{callbacks:{label:c=>{const tot=c.dataset.data.reduce((a,b)=>a+b,0);return ` ${c.label}: ${c.parsed} (${tot>0?((c.parsed/tot)*100).toFixed(1):0}%)`;}}}}}
+  });
+  charts.barProd=new Chart(document.getElementById('barProdChart').getContext('2d'),{
+    type:'bar',data:{labels:[],datasets:[]},
+    options:{...lo,plugins:{legend:{position:'top',labels:{boxWidth:8,usePointStyle:true,padding:8}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{beginAtZero:true,grid:{color:'#f1f5f9'}}}}
+  });
+  charts.barErros=new Chart(document.getElementById('barErrosChart').getContext('2d'),{
+    type:'bar',data:{labels:[],datasets:[]},
+    options:{...lo,indexAxis:'y',plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true,grid:{color:'#f1f5f9'}},y:{grid:{display:false},ticks:{font:{size:9}}}}}
+  });
 }
 
-// ─── CHART.JS DEFAULTS ─────────────────────────────────────────────────────
-Chart.defaults.color            = '#64748b';
-Chart.defaults.font.family      = "'DM Sans', sans-serif";
-Chart.defaults.font.size        = 11;
-Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(255,255,255,0.95)';
-Chart.defaults.plugins.tooltip.titleColor       = '#1e293b';
-Chart.defaults.plugins.tooltip.bodyColor        = '#475569';
-Chart.defaults.plugins.tooltip.borderColor      = '#e2e8f0';
-Chart.defaults.plugins.tooltip.borderWidth      = 1;
-Chart.defaults.plugins.tooltip.padding          = 8;
+// ── STATUS ───────────────────────────────────────────────────────
+function setStatus(t,c){document.getElementById('sync-text').innerText=t;document.getElementById('status-dot').style.color=c;}
+function logDebug(m){console.log(m);const el=document.getElementById('debug-log');if(el)el.innerHTML+=`<div>${m}</div>`;}
 
-function initCharts() {
-    Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
+// ── FETCH ────────────────────────────────────────────────────────
+function fetchData(){
+  document.getElementById('loading-indicator').style.display='flex';
+  document.getElementById('dashboard-content').style.display='none';
+  document.getElementById('debug-log').innerHTML='';
+  setStatus('Sincronizando...','#eab308');
+  sheetsLoaded=0; consolidatedIndicators={}; allDatesSet.clear();
 
-    charts.line = new Chart(document.getElementById('lineChart').getContext('2d'), {
-        type: 'line',
-        data: { labels: [], datasets: [] },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'top', labels: { boxWidth: 8, usePointStyle: true, padding: 12 } } },
-            scales: {
-                x: { grid: { display: false }, ticks: { maxRotation: 45, font: { size: 9 } } },
-                y: { beginAtZero: true, grid: { color: '#f1f5f9' } }
-            }
-        }
-    });
+  const active=SPREADSHEETS.filter(s=>s.active);
+  const extra=["INTERVENÇÕES","COBRANÇA INDEVIDA","SEGUNDO ENVIO"];
+  expectedSheets=active.length*(1+extra.length);
+  logDebug(`Carregando ${expectedSheets} bases...`);
+  if(!expectedSheets){renderDashboard();return;}
 
-    charts.pie = new Chart(document.getElementById('pieChart').getContext('2d'), {
-        type: 'doughnut',
-        data: { labels: [], datasets: [] },
-        options: {
-            responsive: true, maintainAspectRatio: false, cutout: '65%',
-            plugins: {
-                legend: { position: 'bottom', labels: { boxWidth: 8, usePointStyle: true, padding: 10 } },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => ` ${ctx.label}: ${ctx.parsed} (${((ctx.parsed/(ctx.dataset.data.reduce((a,b)=>a+b,0)))*100).toFixed(1)}%)`
-                    }
-                }
-            }
-        }
-    });
+  active.forEach(s=>{
+    const i=SPREADSHEETS.indexOf(s);
+    fetchSheet(s.id,null,'matrix',i+'_main');
+    extra.forEach(t=>fetchSheet(s.id,t,'list',i+'_'+t));
+  });
 
-    charts.barProd = new Chart(document.getElementById('barProdChart').getContext('2d'), {
-        type: 'bar',
-        data: { labels: [], datasets: [] },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'top', labels: { boxWidth: 8, usePointStyle: true, padding: 10 } } },
-            scales: {
-                x: { grid: { display: false }, ticks: { font: { size: 9 } } },
-                y: { beginAtZero: true, grid: { color: '#f1f5f9' } }
-            }
-        }
-    });
-
-    charts.barErros = new Chart(document.getElementById('barErrosChart').getContext('2d'), {
-        type: 'bar',
-        data: { labels: [], datasets: [] },
-        options: {
-            responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { beginAtZero: true, grid: { color: '#f1f5f9' } },
-                y: { grid: { display: false }, ticks: { font: { size: 9 } } }
-            }
-        }
-    });
+  if(fallbackTimeout)clearTimeout(fallbackTimeout);
+  fallbackTimeout=setTimeout(()=>{if(sheetsLoaded<expectedSheets){console.warn('Render parcial');renderDashboard();}},10000);
 }
 
-// ─── STATUS ────────────────────────────────────────────────────────────────
-function setStatus(text, color) {
-    document.getElementById('sync-text').innerText = text;
-    document.getElementById('status-dot').style.color = color;
-}
-function logDebug(msg) {
-    console.log(msg);
-    const el = document.getElementById('debug-log');
-    if (el) el.innerHTML += `<div>${msg}</div>`;
-}
-
-// ─── FETCH ─────────────────────────────────────────────────────────────────
-function fetchData() {
-    document.getElementById('loading-indicator').classList.remove('hidden');
-    document.getElementById('dashboard-content').classList.add('hidden');
-    const debugEl = document.getElementById('debug-log');
-    if (debugEl) debugEl.innerHTML = '';
-
-    setStatus('Sincronizando...', '#eab308');
-    fetchedDataSets  = [];
-    sheetsLoaded     = 0;
-    consolidatedIndicators = {};
-    allDatesSet.clear();
-
-    const activeSheets = SPREADSHEETS.filter(s => s.active);
-    const extraTabs    = ["INTERVENÇÕES", "COBRANÇA INDEVIDA", "SEGUNDO ENVIO"];
-    expectedSheets     = activeSheets.length * (1 + extraTabs.length);
-    logDebug(`Iniciando carga de ${expectedSheets} bases...`);
-
-    if (expectedSheets === 0) { renderDashboard(); return; }
-
-    activeSheets.forEach(sheetObj => {
-        const idx = SPREADSHEETS.indexOf(sheetObj);
-        fetchSpecificSheet(sheetObj.id, null, 'matrix', idx + '_main');
-        extraTabs.forEach(t => fetchSpecificSheet(sheetObj.id, t, 'list', idx + '_' + t));
-    });
-
-    if (fallbackTimeout) clearTimeout(fallbackTimeout);
-    fallbackTimeout = setTimeout(() => {
-        if (sheetsLoaded < expectedSheets) {
-            console.warn(`Render parcial (${sheetsLoaded}/${expectedSheets})`);
-            renderDashboard();
-        }
-    }, 10000);
+function fetchSheet(id,title,type,uid){
+  const script=document.createElement('script');
+  const cid=uid.replace(/[^a-zA-Z0-9]/g,'');
+  const cb='pbi_'+cid;
+  window[cb]=function(j){handleSheetResponse(uid,j,type);delete window[cb];};
+  let url=`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json;responseHandler:${cb}`;
+  if(title)url+='&sheet='+encodeURIComponent(title);
+  script.src=url; script.id='sc_'+uid;
+  script.onerror=()=>{logDebug('Erro: '+id.substring(0,8));handleSheetResponse(uid,null,type);};
+  const ex=document.getElementById(script.id); if(ex)ex.remove();
+  document.body.appendChild(script);
 }
 
-function fetchSpecificSheet(id, title, type, uniqueId) {
-    const script   = document.createElement('script');
-    const cleanId  = String(uniqueId).replace(/[^a-zA-Z0-9]/g, '');
-    const cbName   = 'pbi_cb_' + cleanId;
-
-    window[cbName] = function(json) {
-        handleSheetResponse(uniqueId, json, type);
-        delete window[cbName];
-    };
-
-    let url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json;responseHandler:${cbName}`;
-    if (title) url += '&sheet=' + encodeURIComponent(title);
-
-    script.src    = url;
-    script.id     = 'js-script-' + uniqueId;
-    script.onerror = () => {
-        logDebug(`Erro: ${id.substring(0,8)} (${title || 'Matriz'})`);
-        handleSheetResponse(uniqueId, null, type);
-    };
-
-    const existing = document.getElementById(script.id);
-    if (existing) existing.remove();
-    document.body.appendChild(script);
+function handleSheetResponse(id,json,type){
+  sheetsLoaded++;
+  if(json&&json.table&&json.table.rows){
+    logDebug(`OK: ${id} (${json.table.rows.length} linhas)`);
+    type==='matrix'?parseMatrix(json.table):parseList(json.table);
+  } else if(json&&json.status==='error'){
+    logDebug(`Erro: ${id} — ${(json.errors[0]&&json.errors[0].message)||'sem acesso'}`);
+  }
+  if(sheetsLoaded>=expectedSheets)renderDashboard();
 }
 
-function handleSheetResponse(id, json, type) {
-    sheetsLoaded++;
-    if (json && json.table && json.table.rows) {
-        logDebug(`OK: ${id} (${json.table.rows.length} linhas)`);
-        if (type === 'matrix') parseMatrixData(json.table);
-        else parseListData(json.table);
-    } else if (json && json.status === 'error') {
-        logDebug(`Erro Google: ${id} — ${(json.errors[0] && json.errors[0].message) || 'Aba não encontrada'}`);
+// ── PARSERS ──────────────────────────────────────────────────────
+function parseMatrix(table){
+  let dateRow=-1, dateHdrs={};
+  for(let r=0;r<Math.min(table.rows.length,35);r++){
+    let found=0,pot={};
+    for(let c=0;c<table.cols.length;c++){
+      const row=table.rows[r]; if(!row||!row.c||!row.c[c])continue;
+      const v=String(row.c[c].f||row.c[c].v||'');
+      if(v.match(/^\d{1,2}\/\d{1,2}/)){found++;const p=v.split('/');pot[c]=p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0');}
     }
-    if (sheetsLoaded >= expectedSheets) renderDashboard();
-}
-
-// ─── PARSERS ───────────────────────────────────────────────────────────────
-function parseMatrixData(table) {
-    let dateRowIndex = -1;
-    let dateHeaders  = {};
-
-    for (let r = 0; r < Math.min(table.rows.length, 35); r++) {
-        let foundDates = 0, potentialDates = {};
-        for (let c = 0; c < table.cols.length; c++) {
-            const row = table.rows[r];
-            if (!row || !row.c || !row.c[c]) continue;
-            const val = String(row.c[c].f || row.c[c].v || '');
-            if (val.match(/^\d{1,2}\/\d{1,2}/)) {
-                foundDates++;
-                const parts = val.split('/');
-                potentialDates[c] = parts[0].padStart(2,'0') + '/' + parts[1].padStart(2,'0');
-            }
-        }
-        if (foundDates >= 2) { dateRowIndex = r; dateHeaders = potentialDates; break; }
-    }
-    if (dateRowIndex === -1) { logDebug('Aviso: cabeçalho de data não encontrado'); return; }
-
-    for (let r = dateRowIndex + 1; r < table.rows.length; r++) {
-        const row = table.rows[r];
-        if (!row.c) continue;
-        let indicatorName = '';
-        if (row.c[1] && row.c[1].v) indicatorName = String(row.c[1].v).trim();
-        else if (row.c[0] && row.c[0].v) indicatorName = String(row.c[0].v).trim();
-        if (!indicatorName) continue;
-
-        for (let c in dateHeaders) {
-            if (row.c[c] && row.c[c].v !== null && row.c[c].v !== undefined) {
-                const val = Number(row.c[c].v);
-                const ddmm = dateHeaders[c];
-                allDatesSet.add(ddmm);
-                if (!consolidatedIndicators[indicatorName]) consolidatedIndicators[indicatorName] = { total: 0, byDate: {} };
-                consolidatedIndicators[indicatorName].total += val;
-                consolidatedIndicators[indicatorName].byDate[ddmm] = (consolidatedIndicators[indicatorName].byDate[ddmm] || 0) + val;
-            }
-        }
-    }
-}
-
-function parseListData(table) {
-    let headerRowIndex = -1;
-    for (let i = 0; i < Math.min(table.rows.length, 10); i++) {
-        if (table.rows[i].c && table.rows[i].c[0] && String(table.rows[i].c[0].v).toLowerCase().includes('data')) {
-            headerRowIndex = i; break;
-        }
-    }
-    if (headerRowIndex === -1) return;
-
-    const cols = {};
-    table.cols.forEach((c, idx) => {
-        const val = table.rows[headerRowIndex].c[idx] ? String(table.rows[headerRowIndex].c[idx].v).toUpperCase() : '';
-        cols[val] = idx;
-    });
-
-    for (let r = headerRowIndex + 1; r < table.rows.length; r++) {
-        const row = table.rows[r];
-        if (!row.c || !row.c[0] || !row.c[0].v) continue;
-
-        let dateStrRaw = row.c[0].f || row.c[0].v || '';
-        const dateMatch = String(dateStrRaw).match(/^(\d{1,2})\/(\d{1,2})/);
-        if (!dateMatch) continue;
-        const ddmm = dateMatch[1].padStart(2,'0') + '/' + dateMatch[2].padStart(2,'0');
+    if(found>=2){dateRow=r;dateHdrs=pot;break;}
+  }
+  if(dateRow===-1){logDebug('Aviso: sem cabeçalho de data');return;}
+  for(let r=dateRow+1;r<table.rows.length;r++){
+    const row=table.rows[r]; if(!row.c)continue;
+    let nm='';
+    if(row.c[1]&&row.c[1].v)nm=String(row.c[1].v).trim();
+    else if(row.c[0]&&row.c[0].v)nm=String(row.c[0].v).trim();
+    if(!nm)continue;
+    for(let c in dateHdrs){
+      if(row.c[c]&&row.c[c].v!==null&&row.c[c].v!==undefined){
+        const val=Number(row.c[c].v), ddmm=dateHdrs[c];
         allDatesSet.add(ddmm);
-
-        if (cols['INTERV. ACEITA'] !== undefined) {
-            const aceita = String((row.c[cols['INTERV. ACEITA']] || {}).v || '').toLowerCase();
-            incrementIndicator('Intervenções Propostas', ddmm);
-            if (aceita === 'sim' || aceita === 's') incrementIndicator('Intervenções Aceitas', ddmm);
-        }
-        if (cols['SEGUNDO ENVIO FEITO'] !== undefined) {
-            const segundo = String((row.c[cols['SEGUNDO ENVIO FEITO']] || {}).v || '').toLowerCase();
-            incrementIndicator('Cobrança - Alerta de Erro', ddmm);
-            if (segundo === 'sim' || segundo === 's') incrementIndicator('Segundo Envio Realizado', ddmm);
-        }
-        if (cols['ENFERMEIRA'] !== undefined && cols['INTERV. ACEITA'] === undefined) {
-            incrementIndicator('Cobrança Indevida Detectada', ddmm);
-        }
+        if(!consolidatedIndicators[nm])consolidatedIndicators[nm]={total:0,byDate:{}};
+        consolidatedIndicators[nm].total+=val;
+        consolidatedIndicators[nm].byDate[ddmm]=(consolidatedIndicators[nm].byDate[ddmm]||0)+val;
+      }
     }
+  }
 }
 
-function incrementIndicator(name, date) {
-    if (!consolidatedIndicators[name]) consolidatedIndicators[name] = { total: 0, byDate: {} };
-    consolidatedIndicators[name].total++;
-    consolidatedIndicators[name].byDate[date] = (consolidatedIndicators[name].byDate[date] || 0) + 1;
-}
-
-// ─── HELPERS DE SOMA ───────────────────────────────────────────────────────
-// Soma para o mês selecionado (ou total geral se onlyActiveMonth=false)
-function getIndicatorSumLike(keyword, onlyActiveMonth = true) {
-    return getMonthSum(keyword, onlyActiveMonth ? selectedMonthNum : null);
-}
-
-// Soma para um mês específico (num = '01'..'12') ou total (null)
-function getMonthSum(keyword, monthNum) {
-    let sum = 0;
-    const kLC    = keyword.toLowerCase();
-    const suffix = monthNum ? ('/' + String(monthNum).padStart(2,'0')) : null;
-
-    for (let k in consolidatedIndicators) {
-        if (!k.toLowerCase().includes(kLC)) continue;
-        if (!suffix) {
-            sum += consolidatedIndicators[k].total;
-        } else {
-            for (let d in consolidatedIndicators[k].byDate) {
-                if (d.endsWith(suffix)) sum += consolidatedIndicators[k].byDate[d];
-            }
-        }
+function parseList(table){
+  let hdr=-1;
+  for(let i=0;i<Math.min(table.rows.length,10);i++){
+    if(table.rows[i].c&&table.rows[i].c[0]&&String(table.rows[i].c[0].v).toLowerCase().includes('data')){hdr=i;break;}
+  }
+  if(hdr===-1)return;
+  const cols={};
+  table.cols.forEach((c,idx)=>{
+    const v=table.rows[hdr].c[idx]?String(table.rows[hdr].c[idx].v).toUpperCase():''; cols[v]=idx;
+  });
+  for(let r=hdr+1;r<table.rows.length;r++){
+    const row=table.rows[r]; if(!row.c||!row.c[0]||!row.c[0].v)continue;
+    const dm=String(row.c[0].f||row.c[0].v||'').match(/^(\d{1,2})\/(\d{1,2})/);
+    if(!dm)continue;
+    const ddmm=dm[1].padStart(2,'0')+'/'+dm[2].padStart(2,'0'); allDatesSet.add(ddmm);
+    if(cols['INTERV. ACEITA']!==undefined){
+      const a=String((row.c[cols['INTERV. ACEITA']]||{}).v||'').toLowerCase();
+      incr('Intervenções Propostas',ddmm);
+      if(a==='sim'||a==='s')incr('Intervenções Aceitas',ddmm);
     }
-    return sum;
+    if(cols['SEGUNDO ENVIO FEITO']!==undefined){
+      const s=String((row.c[cols['SEGUNDO ENVIO FEITO']]||{}).v||'').toLowerCase();
+      incr('Cobrança - Alerta de Erro',ddmm);
+      if(s==='sim'||s==='s')incr('Segundo Envio Realizado',ddmm);
+    }
+    if(cols['ENFERMEIRA']!==undefined&&cols['INTERV. ACEITA']===undefined) incr('Cobrança Indevida Detectada',ddmm);
+  }
 }
 
-// Retorna o número do mês anterior (string '01'..'12')
-function getPrevMonthNum() {
-    const curr = parseInt(selectedMonthNum, 10);
-    return curr > 1 ? String(curr - 1).padStart(2,'0') : '12';
+function incr(nm,date){
+  if(!consolidatedIndicators[nm])consolidatedIndicators[nm]={total:0,byDate:{}};
+  consolidatedIndicators[nm].total++;
+  consolidatedIndicators[nm].byDate[date]=(consolidatedIndicators[nm].byDate[date]||0)+1;
 }
 
-// Formata número BR
-function fmt(num, decimals = 1) {
-    return Number(num).toLocaleString('pt-BR', { maximumFractionDigits: decimals });
+// ── SOMA HELPERS ─────────────────────────────────────────────────
+function msum(kw,mnum){
+  let s=0; const kl=kw.toLowerCase(), sf=mnum?'/'+String(mnum).padStart(2,'0'):null;
+  for(let k in consolidatedIndicators){
+    if(!k.toLowerCase().includes(kl))continue;
+    if(!sf){s+=consolidatedIndicators[k].total;}
+    else{for(let d in consolidatedIndicators[k].byDate)if(d.endsWith(sf))s+=consolidatedIndicators[k].byDate[d];}
+  }
+  return s;
 }
-function fmtCurrency(num) {
-    return Number(num).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
+function getM(kw){return msum(kw,selMonthNum);}
+function getPrev(){const c=parseInt(selMonthNum,10);return c>1?String(c-1).padStart(2,'0'):'12';}
+function prevLabel(){return MONTHS.find(m=>m.n===getPrev())?.l||'—';}
 
-// Cria badge de variação percentual
-function deltaBadge(curr, prev) {
-    if (!prev || prev === 0) return '<span class="delta-neutral text-[9px]">—</span>';
-    const pct  = ((curr - prev) / prev * 100);
-    const sign = pct >= 0 ? '+' : '';
-    const cls  = pct > 0 ? 'delta-up' : (pct < 0 ? 'delta-down' : 'delta-neutral');
-    const icon = pct > 0 ? '↑' : (pct < 0 ? '↓' : '→');
-    return `<span class="${cls} font-bold text-[10px]">${icon} ${sign}${pct.toFixed(1)}%</span>`;
-}
+// Formatos
+function f(n,d=0){return Number(n).toLocaleString('pt-BR',{maximumFractionDigits:d});}
+function fc(n){return Number(n).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});}
 
-// ─── RENDER DASHBOARD ──────────────────────────────────────────────────────
-function renderDashboard() {
-    document.getElementById('loading-indicator').classList.add('hidden');
-    document.getElementById('dashboard-content').classList.remove('hidden');
-    setStatus('Atualizado', '#22c55e');
-
-    const now = new Date();
-    document.getElementById('last-update').innerText =
-        String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-
-    markMonthsWithData();
-
-    const prevMonth = getPrevMonthNum();
-
-    // ── KPI CARDS ──────────────────────────────────────────────────────────
-    const kpisDef = [
-        { title:'Prescrições Atendidas', kw:'prescrições atendidas', icon:'fa-file-medical',         accentClass:'kpi-accent-navy' },
-        { title:'Itens Dispensados',      kw:'qt de itens dispen',   icon:'fa-pills',                accentClass:'kpi-accent' },
-        { title:'Tratamentos Iniciados',  kw:'tratamentos iniciados', icon:'fa-syringe',              accentClass:'kpi-accent-navy' },
-        { title:'Custo Gerenciado',       kw:'r$ valor dispensado',  icon:'fa-circle-dollar-to-slot', accentClass:'kpi-accent-green', isMoney: true },
-        { title:'Total Intervenções',     kw:'interv',               icon:'fa-comment-medical',       accentClass:'kpi-accent-red' },
-    ];
-
-    const kpiContainer = document.getElementById('kpi-container');
-    kpiContainer.innerHTML = kpisDef.map(k => {
-        const curr = getMonthSum(k.kw, selectedMonthNum);
-        const prev = getMonthSum(k.kw, prevMonth);
-        const val  = k.isMoney ? fmtCurrency(curr) : fmt(curr, 0);
-        const prevLabel = MONTHS_LIST.find(m => m.num === prevMonth)?.label || '—';
-        const delta = deltaBadge(curr, prev);
-        const prevFmt = prev > 0 ? (k.isMoney ? fmtCurrency(prev) : fmt(prev, 0)) : '—';
-
-        return `
-        <div class="card card-hover p-3 flex flex-col justify-between ${k.accentClass}">
-            <div class="flex items-start justify-between mb-1">
-                <i class="fa-solid ${k.icon} text-gray-300 text-xl"></i>
-                <div class="text-right">${delta}</div>
-            </div>
-            <div>
-                <div class="text-xl font-bold text-gray-800 leading-tight">${val}</div>
-                <div class="text-[9px] font-bold text-gray-400 uppercase tracking-wide mt-0.5">${k.title}</div>
-            </div>
-            <div class="text-[9px] text-gray-400 mt-1 border-t border-gray-100 pt-1">
-                ${prevLabel}: <span class="font-semibold text-gray-500">${prevFmt}</span>
-            </div>
-        </div>`;
-    }).join('');
-
-    // ── TAB VISIBILITY ─────────────────────────────────────────────────────
-    const tabIntegrated = document.getElementById('tab-integrated');
-    const tabDetails    = document.getElementById('tab-details');
-    const detailsContent = document.getElementById('details-content');
-
-    if (currentTab === 'integrated') {
-        tabIntegrated.classList.remove('hidden');
-        tabDetails.classList.add('hidden');
-        updateIntegratedCharts();
-    } else {
-        tabIntegrated.classList.add('hidden');
-        tabDetails.classList.remove('hidden');
-        renderDetailedTab(detailsContent);
-    }
-
-    // ── TABELA DE RANKING ──────────────────────────────────────────────────
-    let filterTerm = '';
-    if (currentTab === 'atb')         filterTerm = 'tratamento';
-    else if (currentTab === 'operational') filterTerm = 'cobrança';
-    else if (currentTab === 'prescents')   filterTerm = 'interv';
-    else if (currentTab === 'production')  filterTerm = 'valor';
-    else if (currentTab === 'quanti')      filterTerm = 'analisada';
-
-    const sortedKeys = Object.keys(consolidatedIndicators)
-        .filter(k => !filterTerm || k.toLowerCase().includes(filterTerm))
-        .sort((a,b) => consolidatedIndicators[b].total - consolidatedIndicators[a].total);
-
-    const tBody = document.getElementById('table-body');
-    tBody.innerHTML = sortedKeys.map((k, i) => {
-        const curr = getMonthSum(k, selectedMonthNum);
-        const prev = getMonthSum(k, prevMonth);
-        return `
-        <tr>
-            <td class="text-gray-400 font-mono" style="width:28px">${i+1}</td>
-            <td class="font-semibold">${k}</td>
-            <td class="right">${fmt(curr, 1)}</td>
-            <td class="right text-gray-400">${prev > 0 ? fmt(prev, 1) : '—'}</td>
-            <td class="center">${deltaBadge(curr, prev)}</td>
-        </tr>`;
-    }).join('') || `<tr><td colspan="5" class="center py-4 text-gray-400 italic">Sem dados para esta visão</td></tr>`;
+function delta(curr,prev){
+  if(!prev||prev===0)return '<span class="nt">—</span>';
+  const p=((curr-prev)/prev*100); const s=p>=0?'+':''; const cls=p>0?'up':p<0?'dn':'nt'; const ic=p>0?'↑':p<0?'↓':'→';
+  return `<span class="${cls}">${ic} ${s}${p.toFixed(1)}%</span>`;
 }
 
-// ─── GRÁFICOS DA VISÃO INTEGRADA ───────────────────────────────────────────
-function updateIntegratedCharts() {
-    const sortedDates = Array.from(allDatesSet).sort((a,b) => {
-        const pa = a.split('/'), pb = b.split('/');
-        return new Date(2026, pa[1]-1, pa[0]) - new Date(2026, pb[1]-1, pb[0]);
-    });
-
-    // Line chart: Prescrições vs Tratamentos (datas)
-    const dsTrat  = sortedDates.map(d => { let s=0; for(let k in consolidatedIndicators) if(k.toLowerCase().includes('tratamentos')) s += (consolidatedIndicators[k].byDate[d]||0); return s; });
-    const dsPresc = sortedDates.map(d => { let s=0; for(let k in consolidatedIndicators) if(k.toLowerCase().includes('prescrições atendidas')) s += (consolidatedIndicators[k].byDate[d]||0); return s; });
-
-    charts.line.data.labels   = sortedDates;
-    charts.line.data.datasets = [
-        { label:'Prescrições At.', data: dsPresc, borderColor:'#1e3a5f', backgroundColor:'rgba(30,58,95,0.08)', borderWidth:2, pointRadius:1.5, fill:true, tension:0.3 },
-        { label:'Tratamentos',     data: dsTrat,  borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.08)', borderWidth:2, pointRadius:1.5, fill:true, tension:0.3, borderDash:[5,4] }
-    ];
-    charts.line.update();
-
-    // Pie: Taxa de aceitação de intervenções
-    const prop  = getIndicatorSumLike('intervenções propostas');
-    const aceit = getIndicatorSumLike('intervenções aceitas');
-    const rejeit = Math.max(0, prop - aceit);
-    charts.pie.data.labels   = ['Aceitas', 'Não Aceitas'];
-    charts.pie.data.datasets = [{ data:[aceit, rejeit], backgroundColor:['#16a34a','#e2e8f0'], borderWidth:0 }];
-    charts.pie.update();
-
-    // Bar Produção: multimensal (Jan-atual)
-    const availMonths = MONTHS_LIST.filter(m => {
-        const suffix = '/' + m.num;
-        for (let k in consolidatedIndicators) for (let d in consolidatedIndicators[k].byDate) if (d.endsWith(suffix)) return true;
-        return false;
-    });
-
-    charts.barProd.data.labels   = availMonths.map(m => m.label);
-    charts.barProd.data.datasets = [
-        {
-            label: 'Itens Dispensados',
-            data: availMonths.map(m => getMonthSum('qt de itens dispen', m.num)),
-            backgroundColor: availMonths.map(m => m.num === selectedMonthNum ? '#1e3a5f' : '#93c5fd'),
-            borderRadius: 4
-        },
-        {
-            label: 'Fracionamento',
-            data: availMonths.map(m => getMonthSum('fracionamento', m.num)),
-            backgroundColor: availMonths.map(m => m.num === selectedMonthNum ? '#f59e0b' : '#fde68a'),
-            borderRadius: 4
-        }
-    ];
-    charts.barProd.update();
-
-    // Bar Erros: alertas críticos
-    const eLabels = [], eData = [];
-    ['cobrança', 'erro', 'segundo envio'].forEach(term => {
-        for (let k in consolidatedIndicators) {
-            if (k.toLowerCase().includes(term) && consolidatedIndicators[k].total > 0) {
-                eLabels.push(k.length > 22 ? k.substring(0,22)+'…' : k);
-                eData.push(getMonthSum(k, selectedMonthNum));
-            }
-        }
-    });
-    charts.barErros.data.labels   = eLabels;
-    charts.barErros.data.datasets = [{ data: eData, backgroundColor:'#f97316', borderRadius:3 }];
-    charts.barErros.update();
+function availMonths(){
+  return MONTHS.filter(m=>{const sf='/'+m.n; for(let k in consolidatedIndicators) for(let d in consolidatedIndicators[k].byDate) if(d.endsWith(sf))return true; return false;});
 }
 
-// ─── RENDER ABAS DETALHADAS ────────────────────────────────────────────────
-function renderDetailedTab(container) {
-    let html = '<div class="flex flex-col gap-4">';
-    const prevMonth = getPrevMonthNum();
-    const prevLabel = MONTHS_LIST.find(m => m.num === prevMonth)?.label || '—';
+// ── RENDER DASHBOARD ─────────────────────────────────────────────
+function renderDashboard(){
+  document.getElementById('loading-indicator').style.display='none';
+  document.getElementById('dashboard-content').style.display='flex';
+  setStatus('Atualizado','#22c55e');
+  const now=new Date();
+  document.getElementById('last-update').innerText=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  markMonthsData();
 
-    if (currentTab === 'comparativo') {
-        html += renderComparativoTab();
-    }
-    else if (currentTab === 'atb') {
-        const ini = getMonthSum('Tratamentos Iniciados', selectedMonthNum);
-        const con = getMonthSum('Tratamentos Concluídos', selectedMonthNum);
-        const iniPrev = getMonthSum('Tratamentos Iniciados', prevMonth);
-        const conPrev = getMonthSum('Tratamentos Concluídos', prevMonth);
-        const efet = ini > 0 ? ((con / ini)*100).toFixed(1) : '—';
+  const prev=getPrev(), pLbl=prevLabel();
 
-        html += sectionHeader('fa-capsules','INDICADORES ATB') +
-            `<div class="grid grid-cols-3 gap-3 mb-4">
-                ${kpiBlock('Iniciados', ini, iniPrev, 'fa-play-circle','text-amber-500')}
-                ${kpiBlock('Concluídos', con, conPrev, 'fa-check-double','text-green-600')}
-                ${kpiBlock('Efetividade ATB', efet+'%', null, 'fa-percent','text-blue-600', true)}
-            </div>` +
-            renderMonthlyTable([
-                { label:'Iniciados',  term:'Tratamentos Iniciados' },
-                { label:'Concluídos', term:'Tratamentos Concluídos' }
-            ]);
-    }
-    else if (currentTab === 'operational') {
-        const seg = getMonthSum('Segundo Envio', selectedMonthNum);
-        const cob = getMonthSum('Cobrança Indevida', selectedMonthNum);
-        const segP = getMonthSum('Segundo Envio', prevMonth);
-        const cobP = getMonthSum('Cobrança Indevida', prevMonth);
-
-        html += sectionHeader('fa-gears','OPERACIONAIS') +
-            `<div class="grid grid-cols-2 gap-4 mb-4">
-                ${kpiBlock('2º Envio Realizado', seg, segP, 'fa-paper-plane','text-blue-500')}
-                ${kpiBlock('Cobrança Indevida', cob, cobP, 'fa-triangle-exclamation','text-red-500')}
-            </div>` +
-            renderMonthlyTable([
-                { label:'2º Envio',        term:'Segundo Envio' },
-                { label:'Cobr. Indevida',  term:'Cobrança Indevida' }
-            ]);
-    }
-    else if (currentTab === 'prescents') {
-        const atEnd   = getMonthSum('atendidas', selectedMonthNum);
-        const propInt = getMonthSum('Propostas', selectedMonthNum);
-        const aceInt  = getMonthSum('Aceitas', selectedMonthNum);
-        const errID   = getMonthSum('Identificados', selectedMonthNum);
-        const errRev  = getMonthSum('Revertidos', selectedMonthNum);
-        const taxaAceit = propInt > 0 ? ((aceInt/propInt)*100).toFixed(1) : '—';
-        const taxaRev   = errID > 0   ? ((errRev/errID)*100).toFixed(1)   : '—';
-
-        const atEndP  = getMonthSum('atendidas', prevMonth);
-        const propP   = getMonthSum('Propostas', prevMonth);
-        const aceP    = getMonthSum('Aceitas', prevMonth);
-        const errIDP  = getMonthSum('Identificados', prevMonth);
-        const errRevP = getMonthSum('Revertidos', prevMonth);
-
-        html += sectionHeader('fa-notes-medical','PRESCRIÇÕES / INTERVENÇÕES') +
-            `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
-                ${kpiBlock('Atendidas',        atEnd,  atEndP, 'fa-file-medical','text-blue-400')}
-                ${kpiBlock('Interv. Propostas',propInt, propP, 'fa-comment-dots','text-indigo-400')}
-                ${kpiBlock('Interv. Aceitas',  aceInt,  aceP,  'fa-circle-check','text-green-500')}
-                ${kpiBlock('Taxa Aceitação',   taxaAceit+'%', null, 'fa-percent','text-amber-500', true)}
-            </div>` +
-            `<div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-                ${kpiBlock('Erros Identificados', errID,   errIDP, 'fa-bug','text-red-400')}
-                ${kpiBlock('Erros Revertidos',    errRev,  errRevP,'fa-shield-halved','text-blue-500')}
-                ${kpiBlock('Taxa de Reversão',    taxaRev+'%', null,'fa-percent','text-green-600', true)}
-            </div>` +
-            renderMonthlyTable([
-                { label:'Atendidas',    term:'atendidas' },
-                { label:'Propostas',    term:'Propostas' },
-                { label:'Aceitas',      term:'Aceitas' },
-                { label:'Erros ID',     term:'Identificados' },
-                { label:'Revertidos',   term:'Revertidos' }
-            ]);
-    }
-    else if (currentTab === 'production') {
-        const frac  = getMonthSum('fracionamento', selectedMonthNum);
-        const altoC = getMonthSum('alto custo', selectedMonthNum);
-        const receb = getMonthSum('r$ valor recebido', selectedMonthNum);
-        const disp  = getMonthSum('r$ valor dispensado', selectedMonthNum);
-        const fracP = getMonthSum('fracionamento', prevMonth);
-        const altcP = getMonthSum('alto custo', prevMonth);
-        const recbP = getMonthSum('r$ valor recebido', prevMonth);
-        const dispP = getMonthSum('r$ valor dispensado', prevMonth);
-
-        html += sectionHeader('fa-industry','PRODUÇÃO') +
-            `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                ${kpiBlock('Fracionamento', frac,  fracP,  'fa-scissors','text-gray-500')}
-                ${kpiBlock('Alto Custo',    altoC, altcP,  'fa-star-of-life','text-purple-500')}
-                ${kpiBlock('R$ Recebido',   fmtCurrency(receb), null, 'fa-file-invoice-dollar','text-green-600', true)}
-                ${kpiBlock('R$ Dispensado', fmtCurrency(disp),  null, 'fa-hand-holding-dollar','text-amber-600', true)}
-            </div>` +
-            `<div class="card p-3 mb-3" style="height:200px"><canvas id="prodTabChart"></canvas></div>` +
-            renderMonthlyTable([
-                { label:'Frac.',      term:'fracionamento' },
-                { label:'Alto Custo', term:'alto custo' },
-                { label:'Itens Disp', term:'itens disp' },
-                { label:'Notas',      term:'notas' },
-                { label:'R$ Disp.',   term:'r$ valor dispensado', money:true }
-            ]);
-        setTimeout(() => renderProductionTabChart(), 80);
-    }
-    else if (currentTab === 'quanti') {
-        html += sectionHeader('fa-magnifying-glass-chart','GESTÃO QUANTIDADE') +
-            renderMonthlyTable([
-                { label:'Analisadas',    term:'analisada' },
-                { label:'Cobr. Indev.',  term:'Cobrança Indevida' },
-                { label:'Não Presc.',    term:'não prescrito' },
-                { label:'Não Padrão',    term:'não padrão' },
-                { label:'Fora Prot.',    term:'fora do protocolo' },
-                { label:'Coord. Delib.', term:'coord. deliberar' },
-                { label:'Outros',        term:'outros' }
-            ], 'COBRANÇAS INDEVIDAS');
-    }
-
-    html += '</div>';
-    container.innerHTML = html;
-}
-
-// ─── ABA COMPARATIVO MENSAL ────────────────────────────────────────────────
-function renderComparativoTab() {
-    // Detecta quais meses têm dados
-    const availMonths = MONTHS_LIST.filter(m => {
-        const suffix = '/' + m.num;
-        for (let k in consolidatedIndicators)
-            for (let d in consolidatedIndicators[k].byDate)
-                if (d.endsWith(suffix)) return true;
-        return false;
-    });
-
-    if (availMonths.length === 0) {
-        return '<div class="py-10 text-center text-gray-400 italic">Sem dados históricos suficientes para comparação.</div>';
-    }
-
-    // KPIs principais para comparação
-    const kpisComp = [
-        { label:'Prescrições Atendidas', kw:'prescrições atendidas' },
-        { label:'Itens Dispensados',     kw:'qt de itens dispen' },
-        { label:'Tratamentos Iniciados', kw:'tratamentos iniciados' },
-        { label:'Tratamentos Concluídos',kw:'tratamentos concluídos' },
-        { label:'Interv. Propostas',     kw:'intervenções propostas' },
-        { label:'Interv. Aceitas',       kw:'intervenções aceitas' },
-        { label:'Cobrança Indevida',     kw:'cobrança indevida' },
-        { label:'2º Envio',              kw:'segundo envio' },
-        { label:'Fracionamento',         kw:'fracionamento' },
-        { label:'R$ Valor Dispensado',   kw:'r$ valor dispensado', money:true },
-    ];
-
-    // Tabela meses como colunas
-    let tableHTML = `
-    <div class="overflow-x-auto border border-gray-200 rounded-lg mb-4">
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th style="min-width:160px">Indicador</th>
-                ${availMonths.map(m => `<th class="right ${m.num === selectedMonthNum ? 'month-col-curr' : ''}">${m.label}</th>`).join('')}
-                ${availMonths.length >= 2 ? '<th class="center">Δ Últ.</th>' : ''}
-            </tr>
-        </thead>
-        <tbody>
-    `;
-
-    kpisComp.forEach((k, idx) => {
-        const vals  = availMonths.map(m => getMonthSum(k.kw, m.num));
-        const last  = vals[vals.length-1];
-        const prev  = vals.length >= 2 ? vals[vals.length-2] : null;
-        const delta = prev !== null ? deltaBadge(last, prev) : '—';
-
-        const rowBg = idx % 2 === 0 ? '' : 'style="background:#fafafa"';
-        tableHTML += `
-        <tr ${rowBg}>
-            <td class="font-semibold text-gray-700">${k.label}</td>
-            ${availMonths.map((m, i) => {
-                const v = vals[i];
-                const display = k.money ? fmtCurrency(v) : fmt(v, 0);
-                const isCurr  = m.num === selectedMonthNum;
-                return `<td class="right ${isCurr ? 'month-col-curr' : ''}">${v > 0 ? display : '<span class="text-gray-300">—</span>'}</td>`;
-            }).join('')}
-            ${availMonths.length >= 2 ? `<td class="center">${delta}</td>` : ''}
-        </tr>`;
-    });
-
-    tableHTML += '</tbody></table></div>';
-
-    // Gráfico de linha multimensal
-    const chartSection = `
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-        <div class="card p-3" style="height:220px">
-            <h4 class="text-[10px] font-bold text-gray-400 uppercase mb-2">Produção Mensal — Itens Dispensados</h4>
-            <canvas id="compChartDisp"></canvas>
-        </div>
-        <div class="card p-3" style="height:220px">
-            <h4 class="text-[10px] font-bold text-gray-400 uppercase mb-2">Taxa de Aceitação de Intervenções (%)</h4>
-            <canvas id="compChartTaxa"></canvas>
-        </div>
+  // ── KPIs ──────────────────────────────────────────────────────
+  const kpiDef=[
+    {title:'Prescrições Atend.',kw:'prescrições atendidas',icon:'fa-file-medical',cls:'navy'},
+    {title:'Itens Dispensados',  kw:'qt de itens dispen',  icon:'fa-pills',       cls:''},
+    {title:'Tratamentos Inic.', kw:'tratamentos iniciados',icon:'fa-syringe',     cls:'navy'},
+    {title:'Custo Gerenciado',  kw:'r$ valor dispensado',  icon:'fa-coins',       cls:'green',money:true},
+    {title:'Total Intervenções',kw:'interv',               icon:'fa-comment-medical',cls:'red'},
+  ];
+  document.getElementById('kpi-container').innerHTML=kpiDef.map(k=>{
+    const c=msum(k.kw,selMonthNum), p=msum(k.kw,prev);
+    const v=k.money?fc(c):f(c); const pv=p>0?(k.money?fc(p):f(p)):'—';
+    return `<div class="card card-hover kpi-card ${k.cls}">
+      <div class="kpi-top"><i class="fa-solid ${k.icon} kpi-icon"></i>${delta(c,p)}</div>
+      <div class="kpi-val">${v}</div>
+      <div class="kpi-label">${k.title}</div>
+      <div class="kpi-prev">${pLbl}: <b>${pv}</b></div>
     </div>`;
+  }).join('');
 
-    setTimeout(() => renderComparativoCharts(availMonths), 80);
+  // ── TAB VISIBILITY ─────────────────────────────────────────────
+  const tabInt=document.getElementById('tab-integrated');
+  const tabDet=document.getElementById('tab-details');
+  if(currentTab==='integrated'){
+    tabInt.style.display='block'; tabDet.style.display='none';
+    updateIntegratedCharts();
+  } else {
+    tabInt.style.display='none'; tabDet.style.display='block';
+    renderDetailedTab(document.getElementById('details-content'));
+  }
 
-    return sectionHeader('fa-calendar-days','COMPARATIVO MENSAL') +
-        `<p class="text-xs text-gray-400 -mt-2 mb-3">Mês destacado em amarelo = mês selecionado (${selectedMonth}). Δ Últ. = variação entre os dois últimos meses com dados.</p>` +
-        chartSection +
-        tableHTML;
+  // ── RANKING ───────────────────────────────────────────────────
+  let ft='';
+  if(currentTab==='atb')ft='tratamento';
+  else if(currentTab==='operational')ft='cobrança';
+  else if(currentTab==='prescents')ft='interv';
+  else if(currentTab==='production')ft='valor';
+  else if(currentTab==='quanti')ft='analisada';
+
+  const keys=Object.keys(consolidatedIndicators).filter(k=>!ft||k.toLowerCase().includes(ft)).sort((a,b)=>consolidatedIndicators[b].total-consolidatedIndicators[a].total);
+  document.getElementById('table-body').innerHTML=keys.map((k,i)=>{
+    const c=msum(k,selMonthNum), p=msum(k,prev);
+    return `<tr><td class="td-mono">${i+1}</td><td><b>${k}</b></td><td class="td-r">${f(c,1)}</td><td class="td-r" style="color:#94a3b8">${p>0?f(p,1):'—'}</td><td class="td-c">${delta(c,p)}</td></tr>`;
+  }).join('')||`<tr><td colspan="5" class="td-c" style="padding:14px;color:#94a3b8;font-style:italic">Sem dados para esta visão</td></tr>`;
 }
 
-function renderComparativoCharts(availMonths) {
-    const ctx1 = document.getElementById('compChartDisp');
-    const ctx2 = document.getElementById('compChartTaxa');
-    if (!ctx1 || !ctx2) return;
+// ── INTEGRATED CHARTS ────────────────────────────────────────────
+function updateIntegratedCharts(){
+  const dates=Array.from(allDatesSet).sort((a,b)=>{const pa=a.split('/'),pb=b.split('/');return new Date(2026,pa[1]-1,pa[0])-new Date(2026,pb[1]-1,pb[0]);});
 
-    // Itens dispensados por mês
-    new Chart(ctx1, {
-        type: 'bar',
-        data: {
-            labels: availMonths.map(m => m.label),
-            datasets: [{
-                label: 'Itens Dispensados',
-                data:  availMonths.map(m => getMonthSum('qt de itens dispen', m.num)),
-                backgroundColor: availMonths.map(m => m.num === selectedMonthNum ? '#1e3a5f' : '#93c5fd'),
-                borderRadius: 4
-            }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { x: { grid:{ display:false } }, y: { beginAtZero:true, grid:{color:'#f1f5f9'} } }
-        }
+  // Line
+  const dsTrat=dates.map(d=>{let s=0;for(let k in consolidatedIndicators)if(k.toLowerCase().includes('tratamentos'))s+=(consolidatedIndicators[k].byDate[d]||0);return s;});
+  const dsPresc=dates.map(d=>{let s=0;for(let k in consolidatedIndicators)if(k.toLowerCase().includes('prescrições atendidas'))s+=(consolidatedIndicators[k].byDate[d]||0);return s;});
+  charts.line.data.labels=dates;
+  charts.line.data.datasets=[
+    {label:'Prescrições At.',data:dsPresc,borderColor:'#1e3a5f',backgroundColor:'rgba(30,58,95,.07)',borderWidth:2,pointRadius:1.5,fill:true,tension:.3},
+    {label:'Tratamentos',data:dsTrat,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.07)',borderWidth:2,pointRadius:1.5,fill:true,tension:.3,borderDash:[5,4]}
+  ];
+  charts.line.update();
+
+  // Pie
+  const prop=getM('intervenções propostas'), aceit=getM('intervenções aceitas');
+  charts.pie.data.labels=['Aceitas','Não Aceitas'];
+  charts.pie.data.datasets=[{data:[aceit,Math.max(0,prop-aceit)],backgroundColor:['#16a34a','#e2e8f0'],borderWidth:0}];
+  charts.pie.update();
+
+  // Bar prod multimensal
+  const am=availMonths();
+  charts.barProd.data.labels=am.map(m=>m.l);
+  charts.barProd.data.datasets=[
+    {label:'Itens Dispensados',data:am.map(m=>msum('qt de itens dispen',m.n)),backgroundColor:am.map(m=>m.n===selMonthNum?'#1e3a5f':'#93c5fd'),borderRadius:3},
+    {label:'Fracionamento',data:am.map(m=>msum('fracionamento',m.n)),backgroundColor:am.map(m=>m.n===selMonthNum?'#f59e0b':'#fde68a'),borderRadius:3}
+  ];
+  charts.barProd.update();
+
+  // Bar erros
+  const eL=[],eD=[];
+  ['cobrança','erro','segundo envio'].forEach(t=>{for(let k in consolidatedIndicators)if(k.toLowerCase().includes(t)&&consolidatedIndicators[k].total>0){eL.push(k.length>24?k.substring(0,24)+'…':k);eD.push(msum(k,selMonthNum));}});
+  charts.barErros.data.labels=eL;
+  charts.barErros.data.datasets=[{data:eD,backgroundColor:'#f97316',borderRadius:3}];
+  charts.barErros.update();
+}
+
+// ── DETAILED TABS ────────────────────────────────────────────────
+function renderDetailedTab(cont){
+  const prev=getPrev(), pLbl=prevLabel();
+  let html='';
+
+  if(currentTab==='comparativo'){
+    html=renderComparativo();
+  } else if(currentTab==='atb'){
+    const ini=msum('Tratamentos Iniciados',selMonthNum), con=msum('Tratamentos Concluídos',selMonthNum);
+    const iniP=msum('Tratamentos Iniciados',prev), conP=msum('Tratamentos Concluídos',prev);
+    const efet=ini>0?((con/ini)*100).toFixed(1)+'%':'—';
+    html=sHdr('fa-capsules','INDICADORES ATB')+
+      `<div class="grid-4 mb12">${kdb('Iniciados',f(ini),f(iniP),delta(ini,iniP),'fa-play-circle','#f59e0b')}${kdb('Concluídos',f(con),f(conP),delta(con,conP),'fa-check-double','#16a34a')}${kdb('Efetividade ATB',efet,null,null,'fa-percent','#3b82f6')}</div>`+
+      monthTable([{l:'Iniciados',t:'Tratamentos Iniciados'},{l:'Concluídos',t:'Tratamentos Concluídos'}]);
+  } else if(currentTab==='operational'){
+    const seg=msum('Segundo Envio',selMonthNum), cob=msum('Cobrança Indevida',selMonthNum);
+    const segP=msum('Segundo Envio',prev), cobP=msum('Cobrança Indevida',prev);
+    html=sHdr('fa-gears','OPERACIONAIS')+
+      `<div class="grid-2 mb12">${kdb('2º Envio Realizado',f(seg),f(segP),delta(seg,segP),'fa-paper-plane','#3b82f6')}${kdb('Cobrança Indevida',f(cob),f(cobP),delta(cob,cobP),'fa-triangle-exclamation','#dc2626')}</div>`+
+      monthTable([{l:'2º Envio',t:'Segundo Envio'},{l:'Cobr. Indevida',t:'Cobrança Indevida'}]);
+  } else if(currentTab==='prescents'){
+    const at=msum('atendidas',selMonthNum),prop=msum('Propostas',selMonthNum),ace=msum('Aceitas',selMonthNum),errI=msum('Identificados',selMonthNum),errR=msum('Revertidos',selMonthNum);
+    const atP=msum('atendidas',prev),propP=msum('Propostas',prev),aceP=msum('Aceitas',prev),errIP=msum('Identificados',prev),errRP=msum('Revertidos',prev);
+    const taxA=prop>0?((ace/prop)*100).toFixed(1)+'%':'—'; const taxR=errI>0?((errR/errI)*100).toFixed(1)+'%':'—';
+    html=sHdr('fa-notes-medical','PRESCRIÇÕES / INTERVENÇÕES')+
+      `<div class="grid-4 mb8">${kdb('Atendidas',f(at),f(atP),delta(at,atP),'fa-file-medical','#3b82f6')}${kdb('Propostas',f(prop),f(propP),delta(prop,propP),'fa-comment-dots','#6366f1')}${kdb('Aceitas',f(ace),f(aceP),delta(ace,aceP),'fa-circle-check','#16a34a')}${kdb('Taxa Aceitação',taxA,null,null,'fa-percent','#f59e0b')}</div>`+
+      `<div class="grid-4 mb12">${kdb('Erros Identif.',f(errI),f(errIP),delta(errI,errIP),'fa-bug','#dc2626')}${kdb('Erros Revert.',f(errR),f(errRP),delta(errR,errRP),'fa-shield-halved','#3b82f6')}${kdb('Taxa Reversão',taxR,null,null,'fa-percent','#16a34a')}</div>`+
+      monthTable([{l:'Atendidas',t:'atendidas'},{l:'Propostas',t:'Propostas'},{l:'Aceitas',t:'Aceitas'},{l:'Erros ID',t:'Identificados'},{l:'Revertidos',t:'Revertidos'}]);
+  } else if(currentTab==='production'){
+    const frac=msum('fracionamento',selMonthNum),alto=msum('alto custo',selMonthNum),rec=msum('r$ valor recebido',selMonthNum),disp=msum('r$ valor dispensado',selMonthNum);
+    const fracP=msum('fracionamento',prev),altoP=msum('alto custo',prev),recP=msum('r$ valor recebido',prev),dispP=msum('r$ valor dispensado',prev);
+    html=sHdr('fa-industry','PRODUÇÃO')+
+      `<div class="grid-4 mb12">${kdb('Fracionamento',f(frac),f(fracP),delta(frac,fracP),'fa-scissors','#64748b')}${kdb('Alto Custo',f(alto),f(altoP),delta(alto,altoP),'fa-star-of-life','#a855f7')}${kdb('R$ Recebido',fc(rec),null,null,'fa-file-invoice-dollar','#16a34a')}${kdb('R$ Dispensado',fc(disp),null,null,'fa-hand-holding-dollar','#f59e0b')}</div>`+
+      `<div class="card mb12" style="padding:12px;height:200px"><canvas id="prodTabChart"></canvas></div>`+
+      monthTable([{l:'Frac.',t:'fracionamento'},{l:'Alto Custo',t:'alto custo'},{l:'Itens',t:'itens disp'},{l:'Notas',t:'notas'},{l:'R$ Disp.',t:'r$ valor dispensado',money:true}]);
+    setTimeout(()=>renderProdChart(),80);
+  } else if(currentTab==='quanti'){
+    html=sHdr('fa-magnifying-glass-chart','GESTÃO QUANTIDADE')+
+      monthTable([{l:'Analisadas',t:'analisada'},{l:'Cobr.Indev.',t:'Cobrança Indevida'},{l:'Não Presc.',t:'não prescrito'},{l:'Não Padrão',t:'não padrão'},{l:'Fora Prot.',t:'fora do protocolo'},{l:'Coord.Delib.',t:'coord. deliberar'},{l:'Outros',t:'outros'}],'COBRANÇAS INDEVIDAS');
+  }
+
+  cont.innerHTML=html;
+}
+
+// ── COMPARATIVO MENSAL ───────────────────────────────────────────
+function renderComparativo(){
+  const am=availMonths();
+  if(!am.length) return '<div style="padding:40px;text-align:center;color:#94a3b8;font-style:italic">Sem dados históricos suficientes.</div>';
+
+  const kpis=[
+    {l:'Prescrições Atendidas',kw:'prescrições atendidas'},
+    {l:'Itens Dispensados',kw:'qt de itens dispen'},
+    {l:'Tratamentos Iniciados',kw:'tratamentos iniciados'},
+    {l:'Tratamentos Concluídos',kw:'tratamentos concluídos'},
+    {l:'Interv. Propostas',kw:'intervenções propostas'},
+    {l:'Interv. Aceitas',kw:'intervenções aceitas'},
+    {l:'Cobrança Indevida',kw:'cobrança indevida'},
+    {l:'2º Envio',kw:'segundo envio'},
+    {l:'Fracionamento',kw:'fracionamento'},
+    {l:'R$ Valor Dispensado',kw:'r$ valor dispensado',money:true},
+  ];
+
+  let tbl=`<div class="tbl-wrap"><table><thead><tr><th style="min-width:160px">Indicador</th>${am.map(m=>`<th class="th-r${m.n===selMonthNum?' th-curr':''}">${m.l}</th>`).join('')}${am.length>=2?'<th class="th-c">Δ Últ.</th>':''}</tr></thead><tbody>`;
+  kpis.forEach((k,idx)=>{
+    const vals=am.map(m=>msum(k.kw,m.n));
+    const last=vals[vals.length-1], prev2=vals.length>=2?vals[vals.length-2]:null;
+    const dlt=prev2!==null?delta(last,prev2):'—';
+    tbl+=`<tr style="${idx%2?'background:#fafafa':''}"><td><b>${k.l}</b></td>${am.map((m,i)=>{const v=vals[i];const d=k.money?fc(v):f(v);return `<td class="td-r${m.n===selMonthNum?' td-curr':''}">${v>0?d:'<span style="color:#d1d5db">—</span>'}</td>`;}).join('')}${am.length>=2?`<td class="td-c">${dlt}</td>`:''}</tr>`;
+  });
+  tbl+='</tbody></table></div>';
+
+  const charts2=`<div class="grid-2 mb12">
+    <div class="card" style="padding:12px;height:210px"><h3 style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:8px"><i class="fa fa-boxes-stacked" style="color:var(--amber)"></i> Itens Dispensados por Mês</h3><div style="position:relative;height:165px"><canvas id="compChartD"></canvas></div></div>
+    <div class="card" style="padding:12px;height:210px"><h3 style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:8px"><i class="fa fa-percent" style="color:var(--amber)"></i> Taxa de Aceitação de Intervenções (%)</h3><div style="position:relative;height:165px"><canvas id="compChartT"></canvas></div></div>
+  </div>`;
+
+  setTimeout(()=>renderCompCharts(am),80);
+
+  return sHdr('fa-calendar-days','COMPARATIVO MENSAL')+
+    `<p class="info-pill">Mês destacado = ${selMonth}. Δ Últ. = variação entre os dois últimos meses com dados.</p>`+
+    charts2+tbl;
+}
+
+function renderCompCharts(am){
+  const c1=document.getElementById('compChartD'), c2=document.getElementById('compChartT');
+  if(!c1||!c2)return;
+  const lo={responsive:true,maintainAspectRatio:false};
+  new Chart(c1,{type:'bar',data:{labels:am.map(m=>m.l),datasets:[{data:am.map(m=>msum('qt de itens dispen',m.n)),backgroundColor:am.map(m=>m.n===selMonthNum?'#1e3a5f':'#93c5fd'),borderRadius:3}]},options:{...lo,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'#f1f5f9'}}}}});
+  new Chart(c2,{type:'line',data:{labels:am.map(m=>m.l),datasets:[{data:am.map(m=>{const p=msum('intervenções propostas',m.n),a=msum('intervenções aceitas',m.n);return p>0?parseFloat(((a/p)*100).toFixed(1)):null;}),borderColor:'#16a34a',backgroundColor:'rgba(22,163,74,.1)',borderWidth:2.5,pointRadius:4,fill:true,tension:.3,spanGaps:true}]},options:{...lo,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,max:100,grid:{color:'#f1f5f9'},ticks:{callback:v=>v+'%'}}}}});
+}
+
+function renderProdChart(){
+  const ctx=document.getElementById('prodTabChart'); if(!ctx)return;
+  const am=availMonths();
+  new Chart(ctx,{type:'bar',data:{labels:am.map(m=>m.l),datasets:[{label:'R$ Dispensado',data:am.map(m=>msum('r$ valor dispensado',m.n)),backgroundColor:am.map(m=>m.n===selMonthNum?'#f59e0b':'#d1d5db'),borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},title:{display:true,text:'Comparativo Mensal de Produção (R$)',font:{size:11,weight:'bold'}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{callback:v=>'R$ '+f(v,0)}}}}});
+}
+
+// ── MONTHLY TABLE ────────────────────────────────────────────────
+function monthTable(kpis, title){
+  const m=parseInt(selMonthNum,10);
+  const days=m===2?28:([4,6,9,11].includes(m)?30:31);
+  let totals=new Array(kpis.length).fill(0), rows='';
+  for(let d=1;d<=days;d++){
+    const ds=String(d).padStart(2,'0')+'/'+String(m).padStart(2,'0');
+    let any=false, cells='';
+    kpis.forEach((k,idx)=>{
+      let v=0;
+      for(let key in consolidatedIndicators) if(key.toLowerCase().includes(k.t.toLowerCase())) v+=(consolidatedIndicators[key].byDate[ds]||0);
+      totals[idx]+=v; if(v>0)any=true;
+      cells+=`<td class="td-r">${v>0?(k.money?fc(Math.round(v)):f(v)):''}</td>`;
     });
-
-    // Taxa de aceitação por mês
-    new Chart(ctx2, {
-        type: 'line',
-        data: {
-            labels: availMonths.map(m => m.label),
-            datasets: [{
-                label: 'Taxa Aceitação (%)',
-                data: availMonths.map(m => {
-                    const prop  = getMonthSum('intervenções propostas', m.num);
-                    const aceit = getMonthSum('intervenções aceitas', m.num);
-                    return prop > 0 ? parseFloat(((aceit/prop)*100).toFixed(1)) : null;
-                }),
-                borderColor: '#16a34a',
-                backgroundColor: 'rgba(22,163,74,0.1)',
-                borderWidth: 2.5, pointRadius: 4, fill: true, tension: 0.3,
-                spanGaps: true
-            }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { grid:{ display:false } },
-                y: { beginAtZero:true, max:100, grid:{color:'#f1f5f9'},
-                     ticks: { callback: v => v+'%' } }
-            }
-        }
-    });
+    rows+=`<tr class="${any?'':'tr-dim'}"><td class="td-mono">${ds}</td>${cells}</tr>`;
+  }
+  return `<div class="tbl-wrap"><table><thead>${title?`<tr><th colspan="${kpis.length+1}" class="td-c">${title}</th></tr>`:''}<tr><th style="min-width:50px">Data</th>${kpis.map(k=>`<th class="th-r">${k.l}</th>`).join('')}</tr></thead><tbody>${rows}<tr class="tr-total"><td>TOTAL</td>${totals.map((t,i)=>`<td class="td-r">${kpis[i].money?fc(Math.round(t)):f(t,1)}</td>`).join('')}</tr></tbody></table></div>`;
 }
 
-function renderProductionTabChart() {
-    const ctx = document.getElementById('prodTabChart');
-    if (!ctx) return;
-    const availMonths = MONTHS_LIST.filter(m => {
-        const suffix = '/' + m.num;
-        for (let k in consolidatedIndicators) for (let d in consolidatedIndicators[k].byDate) if (d.endsWith(suffix)) return true;
-        return false;
-    });
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: availMonths.map(m => m.label),
-            datasets: [{
-                label: 'Valor Total (R$)',
-                data:  availMonths.map(m => getMonthSum('r$ valor dispensado', m.num)),
-                backgroundColor: availMonths.map(m => m.num === selectedMonthNum ? '#f59e0b' : '#d1d5db'),
-                borderRadius: 4
-            }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend:{display:false}, title:{display:true,text:'Comparativo Mensal de Produção (R$)',font:{size:11,weight:'bold'}} },
-            scales: {
-                x: { grid:{display:false} },
-                y: { beginAtZero:true, ticks:{ callback: v => 'R$ ' + fmt(v,0) } }
-            }
-        }
-    });
-}
-
-// ─── TABELA DIÁRIA POR MÊS ─────────────────────────────────────────────────
-function renderMonthlyTable(kpis, title) {
-    const m = parseInt(selectedMonthNum, 10);
-    const daysInMonth = m === 2 ? 28 : ([4,6,9,11].includes(m) ? 30 : 31);
-
-    let totals = new Array(kpis.length).fill(0);
-
-    let rows = '';
-    for (let d = 1; d <= daysInMonth; d++) {
-        const ds    = String(d).padStart(2,'0') + '/' + String(m).padStart(2,'0');
-        let anyData = false;
-        let cells   = '';
-
-        kpis.forEach((k, idx) => {
-            let val = 0;
-            for (let key in consolidatedIndicators) {
-                if (key.toLowerCase().includes(k.term.toLowerCase())) {
-                    val += (consolidatedIndicators[key].byDate[ds] || 0);
-                }
-            }
-            totals[idx] += val;
-            if (val > 0) anyData = true;
-            const display = k.money ? fmtCurrency(Math.round(val)) : (val || '');
-            cells += `<td class="right">${display}</td>`;
-        });
-
-        rows += `<tr class="${anyData ? '' : 'opacity-30'}">
-            <td class="font-mono bg-gray-50 text-gray-500" style="font-size:9px">${ds}</td>
-            ${cells}
-        </tr>`;
-    }
-
-    return `
-    <div class="overflow-x-auto border border-gray-200 rounded-lg">
-    <table class="data-table">
-        <thead>
-            ${title ? `<tr><th colspan="${kpis.length+1}" class="center py-2">${title}</th></tr>` : ''}
-            <tr>
-                <th style="min-width:52px">Data</th>
-                ${kpis.map(k => `<th class="right">${k.label}</th>`).join('')}
-            </tr>
-        </thead>
-        <tbody>
-            ${rows}
-            <tr class="total-row">
-                <td>TOTAL</td>
-                ${totals.map((t,i) => `<td class="right">${kpis[i].money ? fmtCurrency(Math.round(t)) : fmt(t,1)}</td>`).join('')}
-            </tr>
-        </tbody>
-    </table>
-    </div>`;
-}
-
-// ─── HELPERS DE UI ─────────────────────────────────────────────────────────
-function sectionHeader(icon, title) {
-    return `<h2 class="text-base font-black flex items-center gap-2" style="color:#1e3a5f">
-        <i class="fa-solid ${icon} text-amber-500"></i> ${title}
-    </h2>`;
-}
-
-function kpiBlock(title, val, prevVal, icon, iconColor, rawVal = false) {
-    const prevNum = typeof prevVal === 'number' ? prevVal : null;
-    const currNum = parseFloat(String(val).replace(/[^\d.,]/g,'').replace(',','.')) || 0;
-    const delta   = (!rawVal && prevNum !== null) ? deltaBadge(currNum, prevNum) : '';
-    return `
-    <div class="card card-hover kpi-accent p-4 flex flex-col gap-1">
-        <div class="flex items-center justify-between">
-            <i class="fa-solid ${icon} ${iconColor}"></i>
-            ${delta}
-        </div>
-        <div class="text-2xl font-bold text-gray-800">${val}</div>
-        <div class="text-[9px] font-bold text-gray-400 uppercase tracking-wide">${title}</div>
-    </div>`;
+// ── UI HELPERS ───────────────────────────────────────────────────
+function sHdr(icon,title){return `<div class="section-hdr mb12"><i class="fa-solid ${icon}"></i>${title}</div>`;}
+function kdb(title,val,prevVal,dlt,icon,color){
+  return `<div class="card card-hover kpi-detail" style="border-left:4px solid ${color}">
+    <div class="icon-row"><i class="fa-solid ${icon}" style="color:${color}"></i>${dlt||''}</div>
+    <div class="val">${val}</div>
+    <div class="lbl">${title}</div>
+    ${prevVal!==null&&prevVal!==undefined?`<div style="font-size:9px;color:#94a3b8;margin-top:4px;border-top:1px solid #f1f5f9;padding-top:4px">${prevLabel()}: <b>${prevVal}</b></div>`:''}
+  </div>`;
 }
 </script>
 </body>
