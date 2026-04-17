@@ -285,7 +285,7 @@ tbody tr:hover td{background:#fffbeb}
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────
 const SPREADSHEETS = [
-  { name:"Emergência",  id:'1nYo-Pb0yFCUOn_qROB2mRPD3Y_jTkK19',              active:true },
+  { name:"Emergência",  id:'1nYo-Pb0yFCUOn_qROB2mRPD3Y_jTkK19',              active:true,  mainTab:'ABRIL' },
   { name:"Pediatria",   id:'1sAFVO_gvo1Gp-t5Cm4z93y95ph1TyFx-',             active:true },
   { name:"Cer Clínico", id:'1bnYkTzMk024_X4SfSOMUaTEZzQ9m5R40kn3X-Yf5Nt8', active:true },
   { name:"CTI",         id:'1i-GOynig9ctDC0_p01kYgUOi1sjRfTVsDlfUQS2hm4U', active:true }
@@ -406,7 +406,8 @@ function fetchData(){
 
   active.forEach(s=>{
     const i=SPREADSHEETS.indexOf(s);
-    fetchSheet(s.id,null,'matrix',i+'_main');
+    // Usa aba específica se configurada (ex: Emergência tem dados em aba "ABRIL")
+    fetchSheet(s.id, s.mainTab||null, 'matrix', i+'_main');
     extra.forEach(t=>fetchSheet(s.id,t,'list',i+'_'+t));
   });
 
