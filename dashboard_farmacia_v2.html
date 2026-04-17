@@ -483,8 +483,25 @@ function parseMatrix(table,sectorName){
     let found=0,pot={};
     for(let c=0;c<table.cols.length;c++){
       const row=table.rows[r]; if(!row||!row.c||!row.c[c])continue;
-      const v=String(row.c[c].f||row.c[c].v||'');
-      if(v.match(/^\d{1,2}\/\d{1,2}/)){found++;const p=v.split('/');pot[c]=p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0');}
+      const cell = row.c[c];
+      const f = String(cell.f||'');
+      const v = String(cell.v||'');
+      let ddmm = '';
+
+      // Formato 1: texto "01/04" ou "01/04/26" ou "01/04/2026"
+      const mText = f.match(/^(\d{1,2})\/(\d{1,2})/) || v.match(/^(\d{1,2})\/(\d{1,2})/);
+      if(mText) {
+        ddmm = mText[1].padStart(2,'0') + '/' + mText[2].padStart(2,'0');
+      }
+      // Formato 2: gviz Date object "Date(2026,3,1)" — meses são 0-indexados
+      const mDate = v.match(/^Date\((\d+),(\d+),(\d+)\)/);
+      if(!ddmm && mDate) {
+        const day = parseInt(mDate[3]);
+        const month = parseInt(mDate[2]) + 1; // gviz: 0=Jan
+        ddmm = String(day).padStart(2,'0') + '/' + String(month).padStart(2,'0');
+      }
+
+      if(ddmm){ found++; pot[c]=ddmm; }
     }
     if(found>=2){dateRow=r;dateHdrs=pot;break;}
   }
@@ -526,9 +543,14 @@ function parseList(table,sectorName){
   });
   for(let r=hdr+1;r<table.rows.length;r++){
     const row=table.rows[r]; if(!row.c||!row.c[0]||!row.c[0].v)continue;
-    const dm=String(row.c[0].f||row.c[0].v||'').match(/^(\d{1,2})\/(\d{1,2})/);
-    if(!dm)continue;
-    const ddmm=dm[1].padStart(2,'0')+'/'+dm[2].padStart(2,'0');
+    const cell0 = row.c[0];
+    const f0 = String(cell0.f||''), v0 = String(cell0.v||'');
+    let ddmm = '';
+    const mT = f0.match(/^(\d{1,2})\/(\d{1,2})/) || v0.match(/^(\d{1,2})\/(\d{1,2})/);
+    if(mT) ddmm = mT[1].padStart(2,'0')+'/'+mT[2].padStart(2,'0');
+    const mD = v0.match(/^Date\((\d+),(\d+),(\d+)\)/);
+    if(!ddmm && mD) ddmm = String(parseInt(mD[3])).padStart(2,'0')+'/'+String(parseInt(mD[2])+1).padStart(2,'0');
+    if(!ddmm) continue;
     allDatesSet.add(ddmm);
     if(sectorName) sectorDates[sectorName].add(ddmm);
     if(cols['INTERV. ACEITA']!==undefined){
