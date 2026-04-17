@@ -300,6 +300,7 @@ const MONTHS = [
 // ── STATE ────────────────────────────────────────────────────────
 let sheetsLoaded=0, expectedSheets=0, fallbackTimeout;
 let consolidatedIndicators={}, allDatesSet=new Set(), charts={};
+let sectorDates={};  // { "Emergência": Set(["01/04","02/04",...]) }
 let currentTab='integrated';
 let selMonth='Mar', selMonthNum='03';
 
@@ -395,7 +396,7 @@ function fetchData(){
   document.getElementById('dashboard-content').style.display='none';
   document.getElementById('debug-log').innerHTML='';
   setStatus('Sincronizando...','#eab308');
-  sheetsLoaded=0; consolidatedIndicators={}; allDatesSet.clear();
+  sheetsLoaded=0; consolidatedIndicators={}; allDatesSet.clear(); sectorDates={};
 
   const active=SPREADSHEETS.filter(s=>s.active);
   const extra=["INTERVENÇÕES","COBRANÇA INDEVIDA","SEGUNDO ENVIO"];
@@ -428,9 +429,13 @@ function fetchSheet(id,title,type,uid){
 
 function handleSheetResponse(id,json,type){
   sheetsLoaded++;
+  // Extrair nome do setor: uid tem formato "0_main", "1_INTERVENÇÕES", etc.
+  const sheetIdx = parseInt(String(id).split('_')[0]);
+  const sectorName = (SPREADSHEETS[sheetIdx] && SPREADSHEETS[sheetIdx].name) || 'Desconhecido';
+
   if(json&&json.table&&json.table.rows){
     logDebug(`OK: ${id} (${json.table.rows.length} linhas)`);
-    type==='matrix'?parseMatrix(json.table):parseList(json.table);
+    type==='matrix'?parseMatrix(json.table,sectorName):parseList(json.table,sectorName);
   } else if(json&&json.status==='error'){
     logDebug(`Erro: ${id} — ${(json.errors[0]&&json.errors[0].message)||'sem acesso'}`);
   }
@@ -438,7 +443,7 @@ function handleSheetResponse(id,json,type){
 }
 
 // ── PARSERS ──────────────────────────────────────────────────────
-function parseMatrix(table){
+function parseMatrix(table,sectorName){
   let dateRow=-1, dateHdrs={};
   for(let r=0;r<Math.min(table.rows.length,35);r++){
     let found=0,pot={};
@@ -450,6 +455,7 @@ function parseMatrix(table){
     if(found>=2){dateRow=r;dateHdrs=pot;break;}
   }
   if(dateRow===-1){logDebug('Aviso: sem cabeçalho de data');return;}
+  if(sectorName && !sectorDates[sectorName]) sectorDates[sectorName]=new Set();
   for(let r=dateRow+1;r<table.rows.length;r++){
     const row=table.rows[r]; if(!row.c)continue;
     let nm='';
@@ -460,6 +466,7 @@ function parseMatrix(table){
       if(row.c[c]&&row.c[c].v!==null&&row.c[c].v!==undefined){
         const val=Number(row.c[c].v), ddmm=dateHdrs[c];
         allDatesSet.add(ddmm);
+        if(sectorName && val > 0) sectorDates[sectorName].add(ddmm);
         if(!consolidatedIndicators[nm])consolidatedIndicators[nm]={total:0,byDate:{}};
         consolidatedIndicators[nm].total+=val;
         consolidatedIndicators[nm].byDate[ddmm]=(consolidatedIndicators[nm].byDate[ddmm]||0)+val;
@@ -468,12 +475,13 @@ function parseMatrix(table){
   }
 }
 
-function parseList(table){
+function parseList(table,sectorName){
   let hdr=-1;
   for(let i=0;i<Math.min(table.rows.length,10);i++){
     if(table.rows[i].c&&table.rows[i].c[0]&&String(table.rows[i].c[0].v).toLowerCase().includes('data')){hdr=i;break;}
   }
   if(hdr===-1)return;
+  if(sectorName && !sectorDates[sectorName]) sectorDates[sectorName]=new Set();
   const cols={};
   table.cols.forEach((c,idx)=>{
     const v=table.rows[hdr].c[idx]?String(table.rows[hdr].c[idx].v).toUpperCase():''; cols[v]=idx;
@@ -482,7 +490,9 @@ function parseList(table){
     const row=table.rows[r]; if(!row.c||!row.c[0]||!row.c[0].v)continue;
     const dm=String(row.c[0].f||row.c[0].v||'').match(/^(\d{1,2})\/(\d{1,2})/);
     if(!dm)continue;
-    const ddmm=dm[1].padStart(2,'0')+'/'+dm[2].padStart(2,'0'); allDatesSet.add(ddmm);
+    const ddmm=dm[1].padStart(2,'0')+'/'+dm[2].padStart(2,'0');
+    allDatesSet.add(ddmm);
+    if(sectorName) sectorDates[sectorName].add(ddmm);
     if(cols['INTERV. ACEITA']!==undefined){
       const a=String((row.c[cols['INTERV. ACEITA']]||{}).v||'').toLowerCase();
       incr('Intervenções Propostas',ddmm);
@@ -809,33 +819,55 @@ function renderEscalaTab(cont) {
   const hoje = new Date();
   const alertas = getDiasAlerta();
   const mesNome = MONTHS.find(x=>x.n===selMonthNum)?.l || selMonth;
+  const setoresAtivos = SPREADSHEETS.filter(s=>s.active).map(s=>s.name);
+
+  // Setores que NÃO preencheram um dia específico
+  function setoresFaltando(ddmm) {
+    return setoresAtivos.filter(nome => !sectorDates[nome] || !sectorDates[nome].has(ddmm));
+  }
+
+  // Montar todos os dias e ordenar: alertas no topo, depois por data
+  const todosDias = [];
+  for (let d=1; d<=days; d++) {
+    const ddmm = String(d).padStart(2,'0') + '/' + String(m).padStart(2,'0');
+    const dataFull = new Date(2026, m-1, d);
+    const futuro = dataFull > hoje;
+    const esc = getEscalaDia(ddmm);
+    const temEscala = esc.rotina.length > 0 || esc.plantao.length > 0;
+    const temDado = diaTemDado(ddmm);
+    const isAlerta = !futuro && temEscala && !temDado;
+    todosDias.push({ ddmm, dataFull, futuro, temEscala, temDado, isAlerta, esc });
+  }
+  todosDias.sort((a,b) => {
+    if (a.isAlerta && !b.isAlerta) return -1;
+    if (!a.isAlerta && b.isAlerta) return 1;
+    return a.dataFull - b.dataFull;
+  });
 
   let html = `<div class="section-hdr mb12"><i class="fa-solid fa-users"></i>ESCALA — ${mesNome.toUpperCase()}</div>`;
 
+  // Banner resumo
   if (alertas.length > 0) {
-    html += `<div class="alert-banner"><i class="fa fa-triangle-exclamation" style="font-size:16px;flex-shrink:0;margin-top:1px"></i>
-      <span>${alertas.length} dia(s) com colaboradores escalados mas <b>sem indicadores preenchidos</b>:&nbsp;
-      ${alertas.map(d=>`<b>${d}</b>`).join('&nbsp; ')}</span></div>`;
+    html += `<div class="alert-banner">
+      <i class="fa fa-triangle-exclamation" style="font-size:16px;flex-shrink:0;margin-top:1px"></i>
+      <span><b>${alertas.length} dia(s)</b> com colaboradores escalados mas sem indicadores preenchidos.
+      Os dias em alerta aparecem no topo com os setores responsáveis.</span></div>`;
   } else {
     html += `<div class="ok-banner"><i class="fa fa-circle-check" style="font-size:15px"></i> Todos os dias com escala estão com indicadores preenchidos ✓</div>`;
   }
 
-  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px">`;
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:10px">`;
 
-  for (let d=1; d<=days; d++) {
-    const ddmm = String(d).padStart(2,'0') + '/' + String(m).padStart(2,'0');
-    const esc = getEscalaDia(ddmm);
-    const dataFull = new Date(2026, m-1, d);
-    const futuro = dataFull > hoje;
-    const temDado = diaTemDado(ddmm);
-    const temEscala = esc.rotina.length > 0 || esc.plantao.length > 0;
-    const isAlerta = !futuro && temEscala && !temDado;
+  todosDias.forEach(({ ddmm, dataFull, futuro, temEscala, temDado, isAlerta, esc }) => {
     const dow = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'][dataFull.getDay()];
-    const cardClass = isAlerta ? 'alerta' : (temDado ? 'ok' : 'folga');
+    const cardClass = isAlerta ? 'alerta' : (!futuro && temDado ? 'ok' : 'folga');
+    const faltando = isAlerta ? setoresFaltando(ddmm) : [];
 
     html += `<div class="escala-day-card ${cardClass}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-weight:700;font-size:13px">${ddmm} <span style="color:#94a3b8;font-weight:400;font-size:10px">${dow}</span></span>
+        <span style="font-weight:700;font-size:13px">${ddmm}
+          <span style="color:#94a3b8;font-weight:400;font-size:10px">${dow}</span>
+        </span>
         <div>
           ${isAlerta ? '<span class="badge-turno badge-alerta"><i class="fa fa-triangle-exclamation"></i> SEM DADO</span>' : ''}
           ${futuro ? '<span style="font-size:9px;color:#94a3b8;font-style:italic">futuro</span>' : ''}
@@ -843,25 +875,46 @@ function renderEscalaTab(cont) {
         </div>
       </div>`;
 
+    // Bloco setores faltando (só para alertas)
+    if (faltando.length > 0) {
+      html += `<div style="background:#fee2e2;border-radius:6px;padding:6px 8px;margin-bottom:8px">
+        <div style="font-size:9px;color:#991b1b;font-weight:700;margin-bottom:4px">
+          <i class="fa fa-store" style="margin-right:4px"></i>SETOR(ES) SEM PREENCHIMENTO:
+        </div>
+        <div>${faltando.map(s =>
+          `<span style="display:inline-block;margin:2px 3px 0 0;padding:2px 8px;background:#fff;border:1px solid #fca5a5;border-radius:8px;font-size:10px;font-weight:700;color:#dc2626">${s}</span>`
+        ).join('')}</div>
+      </div>`;
+    }
+
+    // Colaboradores rotina
     if (esc.rotina.length > 0) {
       html += `<div style="margin-bottom:6px"><span class="badge-turno badge-r">Rotina</span><br>`;
       esc.rotina.forEach(p => {
-        html += `<div style="padding:2px 0;display:flex;justify-content:space-between"><span class="escala-nome">${p.nome}</span><span class="escala-cargo">${p.cargo}</span></div>`;
+        html += `<div style="padding:2px 0;display:flex;justify-content:space-between">
+          <span class="escala-nome">${p.nome}</span>
+          <span class="escala-cargo">${p.cargo}</span></div>`;
       });
       html += `</div>`;
     }
+
+    // Colaboradores plantão
     if (esc.plantao.length > 0) {
       html += `<div><span class="badge-turno badge-24">Plantão 24h</span><br>`;
       esc.plantao.forEach(p => {
-        html += `<div style="padding:2px 0;display:flex;justify-content:space-between"><span class="escala-nome">${p.nome}</span><span class="escala-cargo">${p.cargo}</span></div>`;
+        html += `<div style="padding:2px 0;display:flex;justify-content:space-between">
+          <span class="escala-nome">${p.nome}</span>
+          <span class="escala-cargo">${p.cargo}</span></div>`;
       });
       html += `</div>`;
     }
+
     if (!temEscala) {
       html += `<div style="font-size:9px;color:#94a3b8;font-style:italic">Sem escala registrada</div>`;
     }
     html += `</div>`;
-  }
+  });
+
   html += `</div>`;
   cont.innerHTML = html;
 }
