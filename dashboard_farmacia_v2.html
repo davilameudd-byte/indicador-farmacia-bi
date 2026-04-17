@@ -471,6 +471,14 @@ function handleSheetResponse(id,json,type){
 // ── PARSERS ──────────────────────────────────────────────────────
 function parseMatrix(table,sectorName){
   let dateRow=-1, dateHdrs={};
+
+  // Log primeiras 5 linhas para diagnóstico
+  logDebug(`🔍 ${sectorName}: analisando ${table.rows.length} linhas, ${table.cols.length} colunas`);
+  for(let r=0;r<Math.min(table.rows.length,5);r++){
+    const vals=(table.rows[r].c||[]).slice(0,6).map(c=>c?(c.f||c.v||'∅'):'∅').join(' | ');
+    logDebug(`  L${r}: ${vals}`);
+  }
+
   for(let r=0;r<Math.min(table.rows.length,35);r++){
     let found=0,pot={};
     for(let c=0;c<table.cols.length;c++){
@@ -480,7 +488,11 @@ function parseMatrix(table,sectorName){
     }
     if(found>=2){dateRow=r;dateHdrs=pot;break;}
   }
-  if(dateRow===-1){logDebug('Aviso: sem cabeçalho de data');return;}
+  if(dateRow===-1){
+    logDebug(`❌ ${sectorName}: cabeçalho de datas NÃO encontrado nas primeiras 35 linhas`);
+    return;
+  }
+  logDebug(`✅ ${sectorName}: datas encontradas na linha ${dateRow} (${Object.keys(dateHdrs).length} colunas de data)`);
   if(sectorName && !sectorDates[sectorName]) sectorDates[sectorName]=new Set();
   for(let r=dateRow+1;r<table.rows.length;r++){
     const row=table.rows[r]; if(!row.c)continue;
