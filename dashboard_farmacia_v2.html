@@ -285,7 +285,7 @@ tbody tr:hover td{background:#fffbeb}
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────
 const SPREADSHEETS = [
-  { name:"Emergência",  id:'1nYo-Pb0yFCUOn_qROB2mRPD3Y_jTkK19',              active:true,  mainTab:'ABRIL' },
+  { name:"Emergência",  id:'1nYo-Pb0yFCUOn_qROB2mRPD3Y_jTkK19',              active:true },
   { name:"Pediatria",   id:'1sAFVO_gvo1Gp-t5Cm4z93y95ph1TyFx-',             active:true },
   { name:"Cer Clínico", id:'1bnYkTzMk024_X4SfSOMUaTEZzQ9m5R40kn3X-Yf5Nt8', active:true },
   { name:"CTI",         id:'1i-GOynig9ctDC0_p01kYgUOi1sjRfTVsDlfUQS2hm4U', active:true }
@@ -406,7 +406,6 @@ function fetchData(){
 
   active.forEach(s=>{
     const i=SPREADSHEETS.indexOf(s);
-    // Usa aba específica se configurada (ex: Emergência tem dados em aba "ABRIL")
     fetchSheet(s.id, s.mainTab||null, 'matrix', i+'_main');
     extra.forEach(t=>fetchSheet(s.id,t,'list',i+'_'+t));
   });
@@ -476,8 +475,13 @@ function parseMatrix(table,sectorName){
   // Log primeiras 5 linhas para diagnóstico
   logDebug(`🔍 ${sectorName}: analisando ${table.rows.length} linhas, ${table.cols.length} colunas`);
   for(let r=0;r<Math.min(table.rows.length,5);r++){
-    const vals=(table.rows[r].c||[]).slice(0,6).map(c=>c?(c.f||c.v||'∅'):'∅').join(' | ');
-    logDebug(`  L${r}: ${vals}`);
+    const vals=(table.rows[r].c||[]).slice(0,8).map(c=>{
+      if(!c) return '∅';
+      const fv = c.f ? `f:"${String(c.f).substring(0,10)}"` : '';
+      const vv = c.v!==null&&c.v!==undefined ? `v:${String(c.v).substring(0,12)}` : '';
+      return (fv||vv||'∅');
+    }).join(' | ');
+    logDebug(`  L${r+1}: ${vals}`);
   }
 
   for(let r=0;r<Math.min(table.rows.length,35);r++){
