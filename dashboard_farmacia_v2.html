@@ -309,7 +309,7 @@ window.google={visualization:{Query:{setResponse:function(j){handleSheetResponse
 
 document.addEventListener('DOMContentLoaded',()=>{
   buildMonthBtns(); buildSetorBtns(); initCharts(); fetchData();
-  setInterval(fetchData,60000);
+  // Auto-refresh removido: atualiza apenas ao clicar no botão
 });
 
 function buildMonthBtns(){
@@ -418,11 +418,35 @@ function fetchSheet(id,title,type,uid){
   const script=document.createElement('script');
   const cid=uid.replace(/[^a-zA-Z0-9]/g,'');
   const cb='pbi_'+cid;
-  window[cb]=function(j){handleSheetResponse(uid,j,type);delete window[cb];};
+
+  // Timeout de 8s: se o script não chamar o callback, considera falho
+  let timedOut = false;
+  const timer = setTimeout(()=>{
+    timedOut = true;
+    if(window[cb]){ delete window[cb]; }
+    logDebug(`⏱️ Timeout: ${uid} — planilha não respondeu (verifique acesso público)`);
+    handleSheetResponse(uid, null, type);
+  }, 8000);
+
+  window[cb]=function(j){
+    if(timedOut) return; // chegou tarde demais
+    clearTimeout(timer);
+    handleSheetResponse(uid,j,type);
+    delete window[cb];
+  };
+
   let url=`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json;responseHandler:${cb}`;
-  if(title)url+='&sheet='+encodeURIComponent(title);
+  if(title) url+='&sheet='+encodeURIComponent(title);
+  // Adiciona cache-buster para evitar resposta cacheada de erro
+  url += '&_t=' + Date.now();
+
   script.src=url; script.id='sc_'+uid;
-  script.onerror=()=>{logDebug('Erro: '+id.substring(0,8));handleSheetResponse(uid,null,type);};
+  script.onerror=()=>{
+    clearTimeout(timer);
+    logDebug(`❌ Erro de rede: ${uid} (planilha bloqueada ou sem acesso público)`);
+    handleSheetResponse(uid,null,type);
+    delete window[cb];
+  };
   const ex=document.getElementById(script.id); if(ex)ex.remove();
   document.body.appendChild(script);
 }
@@ -433,15 +457,13 @@ function handleSheetResponse(id,json,type){
   const sectorName = (SPREADSHEETS[sheetIdx] && SPREADSHEETS[sheetIdx].name) || 'Desconhecido';
 
   if(json&&json.table&&json.table.rows){
-    logDebug(`✅ ${sectorName} (${id}): ${json.table.rows.length} linhas`);
+    logDebug(`✅ ${sectorName} — ${id.split('_').slice(1).join('_')||'Principal'}: ${json.table.rows.length} linhas`);
     type==='matrix'?parseMatrix(json.table,sectorName):parseList(json.table,sectorName);
   } else if(json&&json.status==='error'){
     const msg = (json.errors&&json.errors[0]&&json.errors[0].message)||'sem acesso';
-    logDebug(`❌ ${sectorName} (${id}): ${msg}`);
+    logDebug(`❌ ${sectorName} — ${id.split('_').slice(1).join('_')||'Principal'}: ${msg}`);
   } else if(!json){
-    logDebug(`⚠️ ${sectorName} (${id}): sem resposta (planilha inacessível?)`);
-  } else {
-    logDebug(`⚠️ ${sectorName} (${id}): resposta inesperada: ${JSON.stringify(json).substring(0,80)}`);
+    logDebug(`⚠️ ${sectorName} — ${id.split('_').slice(1).join('_')||'Principal'}: SEM DADOS — verifique: Compartilhar → Qualquer pessoa com o link → Visualizador`);
   }
   if(sheetsLoaded>=expectedSheets)renderDashboard();
 }
@@ -559,7 +581,7 @@ function renderDashboard(){
   if(!debugPanel){
     debugPanel = document.createElement('div');
     debugPanel.id='debug-panel-fixed';
-    debugPanel.style.cssText='position:fixed;bottom:8px;right:8px;background:rgba(15,23,42,.92);color:#94a3b8;font-size:9px;font-family:monospace;padding:8px 10px;border-radius:6px;max-width:340px;max-height:120px;overflow-y:auto;z-index:999;border:1px solid #334155;display:none';
+    debugPanel.style.cssText='position:fixed;bottom:36px;right:8px;background:rgba(15,23,42,.95);color:#cbd5e1;font-size:9px;font-family:monospace;padding:10px 12px;border-radius:6px;max-width:420px;max-height:200px;overflow-y:auto;z-index:999;border:1px solid #475569;display:none;line-height:1.5';
     document.body.appendChild(debugPanel);
     // Botão para abrir/fechar
     const btn = document.createElement('button');
