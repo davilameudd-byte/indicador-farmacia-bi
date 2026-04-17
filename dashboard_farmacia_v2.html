@@ -429,15 +429,19 @@ function fetchSheet(id,title,type,uid){
 
 function handleSheetResponse(id,json,type){
   sheetsLoaded++;
-  // Extrair nome do setor: uid tem formato "0_main", "1_INTERVENÇÕES", etc.
   const sheetIdx = parseInt(String(id).split('_')[0]);
   const sectorName = (SPREADSHEETS[sheetIdx] && SPREADSHEETS[sheetIdx].name) || 'Desconhecido';
 
   if(json&&json.table&&json.table.rows){
-    logDebug(`OK: ${id} (${json.table.rows.length} linhas)`);
+    logDebug(`✅ ${sectorName} (${id}): ${json.table.rows.length} linhas`);
     type==='matrix'?parseMatrix(json.table,sectorName):parseList(json.table,sectorName);
   } else if(json&&json.status==='error'){
-    logDebug(`Erro: ${id} — ${(json.errors[0]&&json.errors[0].message)||'sem acesso'}`);
+    const msg = (json.errors&&json.errors[0]&&json.errors[0].message)||'sem acesso';
+    logDebug(`❌ ${sectorName} (${id}): ${msg}`);
+  } else if(!json){
+    logDebug(`⚠️ ${sectorName} (${id}): sem resposta (planilha inacessível?)`);
+  } else {
+    logDebug(`⚠️ ${sectorName} (${id}): resposta inesperada: ${JSON.stringify(json).substring(0,80)}`);
   }
   if(sheetsLoaded>=expectedSheets)renderDashboard();
 }
@@ -548,6 +552,24 @@ function renderDashboard(){
   setStatus('Atualizado','#22c55e');
   const now=new Date();
   document.getElementById('last-update').innerText=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+
+  // Mover logs de debug para painel fixo no topo (para diagnóstico)
+  const debugLog = document.getElementById('debug-log');
+  let debugPanel = document.getElementById('debug-panel-fixed');
+  if(!debugPanel){
+    debugPanel = document.createElement('div');
+    debugPanel.id='debug-panel-fixed';
+    debugPanel.style.cssText='position:fixed;bottom:8px;right:8px;background:rgba(15,23,42,.92);color:#94a3b8;font-size:9px;font-family:monospace;padding:8px 10px;border-radius:6px;max-width:340px;max-height:120px;overflow-y:auto;z-index:999;border:1px solid #334155;display:none';
+    document.body.appendChild(debugPanel);
+    // Botão para abrir/fechar
+    const btn = document.createElement('button');
+    btn.id='debug-toggle';
+    btn.style.cssText='position:fixed;bottom:8px;right:8px;background:#1e3a5f;color:#fbbf24;border:none;border-radius:4px;padding:3px 8px;font-size:9px;font-weight:700;cursor:pointer;z-index:1000';
+    btn.innerText='🔍 LOG';
+    btn.onclick=()=>{ const dp=document.getElementById('debug-panel-fixed'); dp.style.display=dp.style.display==='none'?'block':'none'; };
+    document.body.appendChild(btn);
+  }
+  if(debugLog) debugPanel.innerHTML = debugLog.innerHTML;
   markMonthsData();
   updateEscalaBadge();
 
