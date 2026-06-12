@@ -432,8 +432,10 @@
     const CONFIG = {
       // ID da planilha "CONTROLE DE ESTOQUE - MATERIAIS"
       SHEET_ID: '186jSdVCSFaYYtq1vAnEbsS3rOfjhpvkq',
-      // GID da aba (0 = primeira aba). Troque se os dados estiverem em outra aba.
-      GID: '0',
+      // GIDs das abas a tentar, em ordem (o painel testa cada uma até encontrar o código).
+      // Para descobrir o gid de uma aba: abra a planilha, clique na aba desejada e veja
+      // o número depois de "gid=" na URL do navegador.
+      GIDS: ['0', '1', '2', '3', '4', '5'],
       // Link do Google Forms usado para registrar a contagem/inventário
       FORMS_URL: 'https://forms.gle/SUBSTITUA_PELO_SEU_LINK_DO_FORMS'
     };
@@ -467,16 +469,26 @@
     }
 
     function carregarDados() {
-      const callbackName = 'gvizCallback_' + Date.now();
-      const scriptUrl = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?gid=${CONFIG.GID}&tqx=out:json;responseHandler:${callbackName}`;
+      tentarGid(0);
+    }
+
+    function tentarGid(gidIndex) {
+      if (gidIndex >= CONFIG.GIDS.length) {
+        showError(`Código "${codigo}" não foi encontrado na planilha de estoque (verificadas ${CONFIG.GIDS.length} abas).`);
+        return;
+      }
+
+      const gid = CONFIG.GIDS[gidIndex];
+      const callbackName = 'gvizCallback_' + Date.now() + '_' + gidIndex;
+      const scriptUrl = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?gid=${gid}&tqx=out:json;responseHandler:${callbackName}`;
 
       window[callbackName] = function (json) {
-        try {
-          delete window[callbackName];
-          const scr = document.getElementById(callbackName);
-          if (scr) scr.remove();
+        delete window[callbackName];
+        const scr = document.getElementById(callbackName);
+        if (scr) scr.remove();
 
-          if (!json || !json.table || !json.table.rows) throw new Error('Planilha sem dados.');
+        try {
+          if (!json || !json.table || !json.table.rows || !json.table.cols) throw new Error('Aba sem dados.');
 
           // Mapeia nome da coluna -> índice, de forma flexível (ignora acentos/maiúsculas)
           const colMap = {};
@@ -484,9 +496,52 @@
             colMap[normalizar(c.label)] = i;
           });
 
+          const idxCod = colMap['COD JDE'] ?? colMap['CODIGO'] ?? colMap['COD'];
+          if (idxCod === undefined) throw new Error('Coluna de código não encontrada nesta aba.');
+
+          // Procura a linha cujo código bate com o da URL
+          const codigoBusca = normalizar(codigo);
+          let linha = null;
+          for (const r of json.table.rows) {
+            const c = r.c;
+            if (!c || !c[idxCod] || c[idxCod].v == null) continue;
+            if (normalizar(c[idxCod].v) === codigoBusca) {
+              linha = c;
+              break;
+            }
+          }
+
+          if (!linha) {
+            // não está nesta aba, tenta a próxima
+            tentarGid(gidIndex + 1);
+            return;
+          }
+
+          renderizarProduto(json, colMap, linha, idxCod);
+
+        } catch (e) {
+          console.error('gid ' + gid + ':', e);
+          // erro nesta aba (ex: aba não existe), tenta a próxima
+          tentarGid(gidIndex + 1);
+        }
+      };
+
+      const script = document.createElement('script');
+      script.id = callbackName;
+      script.src = scriptUrl;
+      script.onerror = function () {
+        const scr = document.getElementById(callbackName);
+        if (scr) scr.remove();
+        tentarGid(gidIndex + 1);
+      };
+      document.body.appendChild(script);
+    }
+
+    function renderizarProduto(json, colMap, linha, idxCod) {
+      try {
           // Possíveis nomes de cada campo na planilha
           const idx = {
-            cod: colMap['COD JDE'] ?? colMap['CODIGO'] ?? colMap['COD'],
+            cod: idxCod,
             produto: colMap['PRODUTO'],
             grupo: colMap['GRUPO'],
             tipoCompra: colMap['TIPO DE COMPRA'],
@@ -503,25 +558,6 @@
             or: colMap['OR'],
             foto: colMap['FOTO'] ?? colMap['IMAGEM'] ?? colMap['LINK FOTO'] ?? colMap['FOTO URL']
           };
-
-          if (idx.cod === undefined) throw new Error('Coluna "COD JDE" não encontrada na planilha.');
-
-          // Procura a linha cujo código bate com o da URL
-          const codigoBusca = normalizar(codigo);
-          let linha = null;
-          for (const r of json.table.rows) {
-            const c = r.c;
-            if (!c || !c[idx.cod] || c[idx.cod].v == null) continue;
-            if (normalizar(c[idx.cod].v) === codigoBusca) {
-              linha = c;
-              break;
-            }
-          }
-
-          if (!linha) {
-            showError(`Código "${codigo}" não foi encontrado na planilha de estoque.`);
-            return;
-          }
 
           // Função auxiliar para ler valores com segurança
           const val = (i) => (i !== undefined && linha[i] && linha[i].v != null) ? linha[i].v : '';
@@ -588,27 +624,16 @@
 
           // Botão de contagem -> Google Forms
           const btn = document.getElementById('btn-contagem');
-          let formsUrl = CONFIG.FORMS_URL;
-          // Tenta pré-preencher o campo de texto curto do Forms com o código (parâmetro genérico)
-          btn.href = formsUrl;
+          btn.href = CONFIG.FORMS_URL;
 
           // Exibe o conteúdo
           elLoading.style.display = 'none';
           elContent.style.display = 'block';
 
-        } catch (e) {
-          console.error(e);
-          showError('Erro ao carregar os dados da planilha. Verifique se ela está pública ("Qualquer pessoa com o link pode ler").');
-        }
-      };
-
-      const script = document.createElement('script');
-      script.id = callbackName;
-      script.src = scriptUrl;
-      script.onerror = function () {
-        showError('Erro de rede: não foi possível acessar a planilha do Google Sheets.');
-      };
-      document.body.appendChild(script);
+      } catch (e) {
+        console.error(e);
+        showError('Erro ao processar os dados da planilha.');
+      }
     }
   </script>
 </body>
