@@ -366,7 +366,7 @@ body::before{
       <div class="stat-card">
         <div class="s-label">Estoque Total</div>
         <div class="s-value" id="f-estoque">--</div>
-        <div class="s-sub">unidades</div>
+        <div class="s-sub">almox + pvax + trânsito</div>
       </div>
       <div class="stat-card">
         <div class="s-label">Almoxarifado</div>
@@ -379,6 +379,11 @@ body::before{
         <div class="s-sub">unid. PVAX</div>
       </div>
       <div class="stat-card">
+        <div class="s-label">Em Trânsito</div>
+        <div class="s-value" id="f-transito">--</div>
+        <div class="s-sub">a receber</div>
+      </div>
+      <div class="stat-card">
         <div class="s-label">CMM</div>
         <div class="s-value" id="f-cmm">--</div>
         <div class="s-sub">cons. médio mensal</div>
@@ -387,16 +392,6 @@ body::before{
         <div class="s-label">CMD</div>
         <div class="s-value" id="f-cmd">--</div>
         <div class="s-sub">cons. médio diário</div>
-      </div>
-      <div class="stat-card">
-        <div class="s-label">Em Trânsito</div>
-        <div class="s-value" id="f-transito">--</div>
-        <div class="s-sub">a receber</div>
-      </div>
-      <div class="stat-card">
-        <div class="s-label">Pedido Sugerido</div>
-        <div class="s-value" id="f-ped-sug">--</div>
-        <div class="s-sub">unidades</div>
       </div>
     </div>
 
@@ -523,13 +518,12 @@ function renderProduto(p) {
 
   /* Indicadores numéricos */
   const dias     = num(p.saldo_dias);
-  const estoque  = num(p.estoque_total);
   const almox    = num(p.almoxarifado);
   const pvax     = num(p.estoque_pvax);
+  const transito = num(p.transito);
+  const estoque  = almox + pvax + transito;
   const cmm      = num(p.cmm);
   const cmd      = num(p.cmd);
-  const transito = num(p.transito);
-  const pedSug   = num(p.pedido_sugerido);
 
   set('f-dias',     fmtNum(dias));
   set('f-estoque',  fmtNum(estoque));
@@ -538,7 +532,6 @@ function renderProduto(p) {
   set('f-cmm',      fmtNum(cmm));
   set('f-cmd',      fmtNum(cmd));
   set('f-transito', fmtNum(transito));
-  set('f-ped-sug',  fmtNum(pedSug));
 
   /* Valores financeiros */
   set('f-valor-uni',   p.valor_uni   || '—');
@@ -588,48 +581,27 @@ function toggleAcc(id) {
   btn.setAttribute('aria-expanded', el.classList.contains('open'));
 }
 
-/* ── Especificações via IA ── */
+/* ── Especificações via PHP proxy ── */
 const specCache = {};
+// Specs vêm do PHP local (que chama a API sem restrição CORS)
+const SPECS_URL = API_URL.replace('api_produto.php', 'api_specs.php');
 
 async function carregarSpecs(p) {
   if (specCache[p.cod]) { renderSpecs(specCache[p.cod]); return; }
 
-  const prompt = `Você é especialista em materiais hospitalares. Para o produto abaixo, gere especificações técnicas detalhadas.
-Responda APENAS JSON válido, sem markdown, sem texto extra.
-
-Produto: "${p.produto}"
-Grupo: "${p.grupo}"
-
-{
-  "categoria": "categoria clínica curta",
-  "material": "material de composição",
-  "dimensoes": "dimensões ou capacidade exatas",
-  "uso_clinico": "indicação de uso em 1 frase objetiva",
-  "apresentacao": "como vem embalado",
-  "unidade_medida": "Rolo / Unidade / Pacote / Caixa etc",
-  "validade": "validade típica em meses (só número)",
-  "armazenamento": "condição de armazenamento",
-  "norma_tecnica": "norma ABNT ou RDC/ANVISA aplicável, ou vazio",
-  "cuidados": "1 cuidado crítico no manuseio ou descarte"
-}`;
-
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','anthropic-version':'2023-06-01'},
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 600,
-        messages: [{role:'user', content: prompt}]
-      })
+    const res = await fetch(SPECS_URL + '?cod=' + encodeURIComponent(p.cod) + '&produto=' + encodeURIComponent(p.produto) + '&grupo=' + encodeURIComponent(p.grupo || ''), {
+      headers: { 'ngrok-skip-browser-warning': 'true', 'Accept': 'application/json' }
     });
     const data = await res.json();
-    let specs = {};
-    try { specs = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim()); } catch{}
-    specCache[p.cod] = specs;
-    renderSpecs(specs);
+    if (data && !data.erro) {
+      specCache[p.cod] = data;
+      renderSpecs(data);
+    } else {
+      document.getElementById('spec-loading').innerHTML = '<span style="color:#94a3b8;font-size:12px">Especificações não disponíveis.</span>';
+    }
   } catch(e) {
-    document.getElementById('spec-loading').innerHTML = '<span style="color:#94a3b8;font-size:12px">Especificações não disponíveis no momento.</span>';
+    document.getElementById('spec-loading').innerHTML = '<span style="color:#94a3b8;font-size:12px">Especificações não disponíveis.</span>';
   }
 }
 
